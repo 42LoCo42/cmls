@@ -8,8 +8,11 @@
           src = ./.;
 
           nativeBuildInputs = with pkgs; [
-            jq
             pkg-config
+          ];
+
+          buildInputs = with pkgs; [
+            jansson
           ];
 
           doCheck = true;

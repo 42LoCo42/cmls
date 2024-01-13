@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-find src -name test | while read -r path; do
+find src -name "test.json" | while read -r path; do
 	name="$(basename "$(realpath -m "$path/..")")"
-	bash "$path" | "$1" test "$name"
+	"$1" test "$name"
 done

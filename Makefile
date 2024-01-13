@@ -1,12 +1,12 @@
 NAME    := cmls
-DEPS    :=
+DEPS    := jansson
 CFLAGS  := -Wall -Wextra
 LDFLAGS :=
 
 ################################################################################
 
-# CFLAGS  += $(shell pkg-config --cflags $(DEPS))
-# LDFLAGS += $(shell pkg-config --libs   $(DEPS))
+CFLAGS  += $(shell pkg-config --cflags $(DEPS))
+LDFLAGS += $(shell pkg-config --libs   $(DEPS))
 
 SRCS := $(shell find -name '*.c')
 INCS := $(patsubst %.c,build/%.d,$(SRCS))

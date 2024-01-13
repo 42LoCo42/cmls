@@ -1,4 +1,0 @@
-#!/usr/bin/env bash
-exec jq -r \
-	'.[] | "\(.n_leaves) \(.n_nodes) \(.root) \(.left) \(.right) \(.parent) \(.sibling)"' \
-	< "$(dirname "$0")/test.json"

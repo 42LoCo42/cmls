@@ -1,6 +1,7 @@
 #ifndef CMLS_UTILS_H
 #define CMLS_UTILS_H
 
+#include "jansson.h"
 #include <stdlib.h>
 
 #define Vector(type)                                                           \
@@ -9,8 +10,6 @@
 		size_t len;                                                            \
 		size_t cap;                                                            \
 	}
-
-typedef Vector(int) ints;
 
 #define vec_push(vec, val)                                                     \
 	{                                                                          \
@@ -33,7 +32,8 @@ typedef Vector(int) ints;
 		vec.cap = 0;                                                           \
 	}
 
-ints  readints(char* line);
 char* next_arg(int* argc, char*** argv);
+
+int json_opt_int(json_t* value);
 
 #endif

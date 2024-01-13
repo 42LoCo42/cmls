@@ -1,22 +1,6 @@
 #include "utils.h"
+#include "jansson.h"
 #include "string.h"
-
-ints readints(char* line) {
-	ints res = {0};
-	line++; // skip first [
-
-	while(line[0] != 0) {
-		char* item = strsep(&line, ",]");
-
-		if(strcmp(item, "null") == 0) {
-			vec_push(res, -1);
-		} else {
-			vec_push(res, atoi(item));
-		}
-	}
-
-	return res;
-}
 
 char* next_arg(int* argc, char*** argv) {
 	if(*argc == 0) return NULL;
@@ -24,4 +8,9 @@ char* next_arg(int* argc, char*** argv) {
 	(*argc)--;
 	(*argv)++;
 	return res;
+}
+
+int json_opt_int(json_t* value) {
+	if(json_is_null(value)) return -1;
+	return json_integer_value(value);
 }

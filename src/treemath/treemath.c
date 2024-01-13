@@ -1,5 +1,6 @@
 #include "treemath.h"
 #include "../utils/utils.h"
+#include "jansson.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -63,27 +64,30 @@ int cmls_treemath_sibling(int node, int leaves) {
 	}
 }
 
-void cmls_treemath_test(char* line) {
-	int  leaves  = atoi(strsep(&line, " "));
-	int  nodes   = atoi(strsep(&line, " "));
-	int  root    = atoi(strsep(&line, " "));
-	ints left    = readints(strsep(&line, " "));
-	ints right   = readints(strsep(&line, " "));
-	ints parent  = readints(strsep(&line, " "));
-	ints sibling = readints(strsep(&line, "\n"));
+void cmls_treemath_test(json_t* entry) {
+	int     leaves  = json_integer_value(json_object_get(entry, "n_leaves"));
+	int     nodes   = json_integer_value(json_object_get(entry, "n_nodes"));
+	int     root    = json_integer_value(json_object_get(entry, "root"));
+	json_t* left    = json_object_get(entry, "left");
+	json_t* right   = json_object_get(entry, "right");
+	json_t* parent  = json_object_get(entry, "parent");
+	json_t* sibling = json_object_get(entry, "sibling");
 
 	assert(cmls_treemath_nodes(leaves) == nodes);
 	assert(cmls_treemath_root(leaves) == root);
 
-	for(int i = 0; i < leaves; i++) {
-		assert(cmls_treemath_left(i) == vec_get(left, i));
-		assert(cmls_treemath_right(i) == vec_get(right, i));
-		assert(cmls_treemath_parent(i, leaves) == vec_get(parent, i));
-		assert(cmls_treemath_sibling(i, leaves) == vec_get(sibling, i));
+	for(int i = 0; i < nodes; i++) {
+		assert(cmls_treemath_left(i) == json_opt_int(json_array_get(left, i)));
+		assert(
+			cmls_treemath_right(i) == json_opt_int(json_array_get(right, i))
+		);
+		assert(
+			cmls_treemath_parent(i, leaves) ==
+			json_opt_int(json_array_get(parent, i))
+		);
+		assert(
+			cmls_treemath_sibling(i, leaves) ==
+			json_opt_int(json_array_get(sibling, i))
+		);
 	}
-
-	vec_free(left);
-	vec_free(right);
-	vec_free(parent);
-	vec_free(sibling);
 }
