@@ -1,6 +1,4 @@
 #include "utils.h"
-#include "jansson.h"
-#include "string.h"
 
 char* next_arg(int* argc, char*** argv) {
 	if(*argc == 0) return NULL;

@@ -1,9 +1,6 @@
 #include "treemath.h"
 #include "../utils/utils.h"
-#include "jansson.h"
 #include <assert.h>
-#include <stdio.h>
-#include <string.h>
 
 static int log2x(int x) {
 	if(x == 0) return 0;

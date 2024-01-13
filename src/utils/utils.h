@@ -1,8 +1,7 @@
 #ifndef CMLS_UTILS_H
 #define CMLS_UTILS_H
 
-#include "jansson.h"
-#include <stdlib.h>
+#include <jansson.h>
 
 #define Vector(type)                                                           \
 	struct {                                                                   \
