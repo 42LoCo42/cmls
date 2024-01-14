@@ -24,6 +24,14 @@ unsigned char* cmls_crypto_DeriveSecret(
 	const char*          label
 );
 
+unsigned char* cmls_crypto_DeriveTreeSecret(
+	const unsigned char* secret,
+	size_t               secret_len,
+	const char*          label,
+	uint32_t             generation,
+	uint16_t             length
+);
+
 void cmls_crypto_test(const json_t* entry);
 
 #endif

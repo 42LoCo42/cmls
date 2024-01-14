@@ -120,6 +120,30 @@ unsigned char* cmls_crypto_DeriveSecret(
 	);
 }
 
+unsigned char* cmls_crypto_DeriveTreeSecret(
+	const unsigned char* secret,
+	size_t               secret_len,
+	const char*          label,
+	uint32_t             generation,
+	uint16_t             length
+) {
+	unsigned char context[4] = {0};
+
+	context[0] = generation >> (8 * 3) % 0x100;
+	context[1] = generation >> (8 * 2) % 0x100;
+	context[2] = generation >> (8 * 1) % 0x100;
+	context[3] = generation >> (8 * 0) % 0x100;
+
+	return cmls_crypto_ExpandWithLabel(
+		secret,
+		secret_len,
+		label,
+		context,
+		sizeof(context),
+		length
+	);
+}
+
 void cmls_crypto_test(const json_t* entry) {
 	int cipher_suite =
 		json_integer_value(json_object_get(entry, "cipher_suite"));
@@ -214,6 +238,40 @@ void cmls_crypto_test(const json_t* entry) {
 		const unsigned char* out_have =
 			cmls_crypto_DeriveSecret(secret, secret_len, label);
 		assert(memcmp(out_want, out_have, kdf_nh) == 0);
+
+		free((char*) out_have);
+		free((char*) out_want);
+		free((char*) secret);
+	}
+
+	///// DeriveTreeSecret /////
+	{
+		const json_t* j = json_object_get(entry, "derive_tree_secret");
+
+		uint32_t generation =
+			json_integer_value(json_object_get(j, "generation"));
+
+		const char* label = json_string_value(json_object_get(j, "label"));
+
+		size_t length = json_integer_value(json_object_get(j, "length"));
+
+		size_t               secret_len = 0;
+		const unsigned char* secret     = decode_hex(
+            json_string_value(json_object_get(j, "secret")),
+            &secret_len
+        );
+
+		const unsigned char* out_want =
+			decode_hex(json_string_value(json_object_get(j, "out")), NULL);
+
+		const unsigned char* out_have = cmls_crypto_DeriveTreeSecret(
+			secret,
+			secret_len,
+			label,
+			generation,
+			length
+		);
+		assert(memcmp(out_want, out_have, length) == 0);
 
 		free((char*) out_have);
 		free((char*) out_want);
