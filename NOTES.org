@@ -1,1 +1,7 @@
 https://github.com/mlswg/mls-implementations/blob/main/test-vectors.md
+
+* TODO
+- generalized EVP_PKEY* constructor for different curve types
+  (ed25519, ed448, P-256, P-384, P-521)
+  based on EVP_PKEY_fromdata
+- learn openssl HPKE -> implement En/DecryptWithLabel
