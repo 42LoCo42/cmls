@@ -1,19 +1,29 @@
 #include "crypto.h"
 #include "../serialize/serialize.h"
-#include <assert.h>
+#include <err.h>
 #include <openssl/core_names.h>
+#include <openssl/err.h>
+#include <openssl/evp.h>
 #include <openssl/kdf.h>
-#include <openssl/obj_mac.h>
-#include <openssl/params.h>
 #include <openssl/sha.h>
+
+#define odie(...)                                                              \
+	{                                                                          \
+		ERR_print_errors_fp(stderr);                                           \
+		warn(__VA_ARGS__);                                                     \
+		goto end;                                                              \
+	}
 
 cmls_CipherSuite cmls_ciphersuites[] = {
 	{
 		.hash        = SHA256,
 		.hash_name   = SN_sha256,
 		.hash_length = SHA256_DIGEST_LENGTH,
+
+		.sign_type = EVP_PKEY_ED25519,
 	},
 	{
+		.skip        = true,
 		.hash        = SHA256,
 		.hash_name   = SN_sha256,
 		.hash_length = SHA256_DIGEST_LENGTH,
@@ -22,8 +32,18 @@ cmls_CipherSuite cmls_ciphersuites[] = {
 		.hash        = SHA256,
 		.hash_name   = SN_sha256,
 		.hash_length = SHA256_DIGEST_LENGTH,
+
+		.sign_type = EVP_PKEY_ED25519,
 	},
 	{
+		.hash        = SHA512,
+		.hash_name   = SN_sha512,
+		.hash_length = SHA512_DIGEST_LENGTH,
+
+		.sign_type = EVP_PKEY_ED448,
+	},
+	{
+		.skip        = true,
 		.hash        = SHA512,
 		.hash_name   = SN_sha512,
 		.hash_length = SHA512_DIGEST_LENGTH,
@@ -32,13 +52,11 @@ cmls_CipherSuite cmls_ciphersuites[] = {
 		.hash        = SHA512,
 		.hash_name   = SN_sha512,
 		.hash_length = SHA512_DIGEST_LENGTH,
+
+		.sign_type = EVP_PKEY_ED448,
 	},
 	{
-		.hash        = SHA512,
-		.hash_name   = SN_sha512,
-		.hash_length = SHA512_DIGEST_LENGTH,
-	},
-	{
+		.skip        = true,
 		.hash        = SHA384,
 		.hash_name   = SN_sha384,
 		.hash_length = SHA384_DIGEST_LENGTH,
@@ -48,16 +66,20 @@ cmls_CipherSuite cmls_ciphersuites[] = {
 size_t cmls_max_ciphersuite =
 	sizeof(cmls_ciphersuites) / sizeof(cmls_ciphersuites[0]);
 
-static EVP_KDF_CTX* ctx = NULL;
+static EVP_KDF_CTX* kdf_ctx = NULL;
+static EVP_MD_CTX*  md_ctx  = NULL;
 
 static void __attribute__((constructor)) lib_init() {
 	EVP_KDF* kdf = EVP_KDF_fetch(NULL, "HKDF", NULL);
-	ctx          = EVP_KDF_CTX_new(kdf);
+	kdf_ctx      = EVP_KDF_CTX_new(kdf);
 	EVP_KDF_free(kdf);
+
+	md_ctx = EVP_MD_CTX_new();
 }
 
 static void __attribute((destructor())) lib_free() {
-	EVP_KDF_CTX_free(ctx);
+	EVP_KDF_CTX_free(kdf_ctx);
+	EVP_MD_CTX_free(md_ctx);
 }
 
 static void ctx_set_digest(cmls_CipherSuite suite) {
@@ -67,9 +89,9 @@ static void ctx_set_digest(cmls_CipherSuite suite) {
 			suite.hash_name,
 			strlen(suite.hash_name)
 		),
-		OSSL_PARAM_construct_end(),
+		OSSL_PARAM_END,
 	};
-	EVP_KDF_CTX_set_params(ctx, params);
+	EVP_KDF_CTX_set_params(kdf_ctx, params);
 }
 
 static size_t cmls_crypto_kdf_nh(cmls_CipherSuite suite) {
@@ -77,10 +99,10 @@ static size_t cmls_crypto_kdf_nh(cmls_CipherSuite suite) {
 	int        mode     = EVP_KDF_HKDF_MODE_EXTRACT_ONLY;
 	OSSL_PARAM params[] = {
 		OSSL_PARAM_construct_int(OSSL_KDF_PARAM_MODE, &mode),
-		OSSL_PARAM_construct_end(),
+		OSSL_PARAM_END,
 	};
-	EVP_KDF_CTX_set_params(ctx, params);
-	return EVP_KDF_CTX_get_kdf_size(ctx);
+	EVP_KDF_CTX_set_params(kdf_ctx, params);
+	return EVP_KDF_CTX_get_kdf_size(kdf_ctx);
 }
 
 unsigned char* cmls_crypto_RefHash(
@@ -141,12 +163,12 @@ unsigned char* cmls_crypto_ExpandWithLabel(
 			info.ptr,
 			info.len
 		),
-		OSSL_PARAM_construct_end(),
+		OSSL_PARAM_END,
 	};
 
 	// run KDF
 	ctx_set_digest(suite);
-	EVP_KDF_derive(ctx, out, length, params);
+	EVP_KDF_derive(kdf_ctx, out, length, params);
 
 end:
 	if(info.ptr != NULL) vec_free(&info);
@@ -197,142 +219,98 @@ unsigned char* cmls_crypto_DeriveTreeSecret(
 	);
 }
 
-void cmls_crypto_test(const json_t* entry) {
-	size_t suite_index_1 =
-		json_integer_value(json_object_get(entry, "cipher_suite"));
+static bytes mkSignContent(
+	const char*          label,
+	const unsigned char* content,
+	size_t               content_len
+) {
+	char* real_label = NULL;
+	bytes msg        = {0};
 
-	if(suite_index_1 > cmls_max_ciphersuite) {
-		fprintf(
-			stderr,
-			"\e[1;31mUnsupported cipher suite: %zu\e[m\n",
-			suite_index_1
-		);
-		return;
-	}
+	if(asprintf(&real_label, "MLS 1.0 %s", label) < 0) goto end;
+	cmls_serialize_encode(
+		(unsigned char*) real_label,
+		strlen(real_label),
+		&msg
+	);
+	cmls_serialize_encode(content, content_len, &msg);
 
-	cmls_CipherSuite suite = cmls_ciphersuites[suite_index_1 - 1];
+end:
+	if(real_label != NULL) free(real_label);
+	return msg;
+}
 
-	///// RefHash /////
-	{
-		const json_t* j     = json_object_get(entry, "ref_hash");
-		const char*   label = json_string_value(json_object_get(j, "label"));
+void cmls_crypto_SignWithLabel(
+	cmls_CipherSuite     suite,
+	const unsigned char* key,
+	size_t               key_len,
+	const char*          label,
+	const unsigned char* content,
+	size_t               content_len,
+	unsigned char**      sig,
+	size_t*              sig_len
+) {
+	EVP_MD_CTX_reset(md_ctx);
 
-		size_t               data_len = 0;
-		const unsigned char* data     = decode_hex(
-            json_string_value(json_object_get(j, "value")),
-            &data_len
-        );
+	bytes          msg     = {0};
+	EVP_PKEY*      pkey    = NULL;
+	unsigned char* out     = NULL;
+	size_t         out_len = 0;
 
-		size_t               hash_len = 0;
-		const unsigned char* hash_want =
-			decode_hex(json_string_value(json_object_get(j, "out")), &hash_len);
+	// create message
+	msg = mkSignContent(label, content, content_len);
 
-		const unsigned char* hash_have =
-			cmls_crypto_RefHash(suite, label, data, data_len);
-		assert(memcmp(hash_want, hash_have, hash_len) == 0);
+	// create key
+	pkey = EVP_PKEY_new_raw_private_key(suite.sign_type, NULL, key, key_len);
+	if(pkey == NULL) odie("pkey init");
 
-		free((char*) hash_have);
-		free((char*) hash_want);
-		free((char*) data);
-	}
+	out_len = EVP_PKEY_get_size(pkey);
+	if((out = OPENSSL_zalloc(out_len)) == NULL) odie("alloc sig");
 
-	///// ExpandWithLabel /////
-	{
-		const json_t* j = json_object_get(entry, "expand_with_label");
+	// create signature
+	if(EVP_DigestSignInit_ex(md_ctx, NULL, NULL, NULL, NULL, pkey, NULL) <= 0)
+		odie("DigestSign init");
+	if(EVP_DigestSign(md_ctx, out, &out_len, msg.ptr, msg.len) <= 0)
+		odie("DigestSign");
 
-		size_t               context_len = 0;
-		const unsigned char* context     = decode_hex(
-            json_string_value(json_object_get(j, "context")),
-            &context_len
-        );
+end:
+	if(pkey != NULL) EVP_PKEY_free(pkey);
+	if(msg.ptr != NULL) vec_free(&msg);
+	*sig     = out;
+	*sig_len = out_len;
+}
 
-		const char* label = json_string_value(json_object_get(j, "label"));
+bool cmls_crypto_VerifyWithLabel(
+	cmls_CipherSuite     suite,
+	const unsigned char* key,
+	size_t               key_len,
+	const char*          label,
+	const unsigned char* content,
+	size_t               content_len,
+	const unsigned char* sig,
+	size_t               sig_len
+) {
+	EVP_MD_CTX_reset(md_ctx);
 
-		size_t length = json_integer_value(json_object_get(j, "length"));
+	bytes     msg  = {0};
+	EVP_PKEY* pkey = NULL;
+	bool      ok   = false;
 
-		size_t               secret_len = 0;
-		const unsigned char* secret     = decode_hex(
-            json_string_value(json_object_get(j, "secret")),
-            &secret_len
-        );
+	// create message
+	msg = mkSignContent(label, content, content_len);
 
-		const unsigned char* out_want =
-			decode_hex(json_string_value(json_object_get(j, "out")), NULL);
+	// create key
+	if((pkey = EVP_PKEY_new_raw_public_key(suite.sign_type, NULL, key, key_len)
+	   ) == NULL)
+		odie("pkey init");
 
-		const unsigned char* out_have = cmls_crypto_ExpandWithLabel(
-			suite,
-			secret,
-			secret_len,
-			label,
-			context,
-			context_len,
-			length
-		);
-		assert(memcmp(out_want, out_have, length) == 0);
+	// perform verification
+	if(EVP_DigestVerifyInit(md_ctx, NULL, NULL, NULL, pkey) <= 0)
+		odie("DigestVerify init");
+	ok = EVP_DigestVerify(md_ctx, sig, sig_len, msg.ptr, msg.len);
 
-		free((char*) out_have);
-		free((char*) out_want);
-		free((char*) secret);
-		free((char*) context);
-	}
-
-	///// DeriveSecret /////
-	{
-		const json_t* j = json_object_get(entry, "derive_secret");
-
-		const char* label = json_string_value(json_object_get(j, "label"));
-
-		size_t               secret_len = 0;
-		const unsigned char* secret     = decode_hex(
-            json_string_value(json_object_get(j, "secret")),
-            &secret_len
-        );
-
-		size_t               out_len = 0;
-		const unsigned char* out_want =
-			decode_hex(json_string_value(json_object_get(j, "out")), &out_len);
-
-		const unsigned char* out_have =
-			cmls_crypto_DeriveSecret(suite, secret, secret_len, label);
-		assert(memcmp(out_want, out_have, out_len) == 0);
-
-		free((char*) out_have);
-		free((char*) out_want);
-		free((char*) secret);
-	}
-
-	///// DeriveTreeSecret /////
-	{
-		const json_t* j = json_object_get(entry, "derive_tree_secret");
-
-		uint32_t generation =
-			json_integer_value(json_object_get(j, "generation"));
-
-		const char* label = json_string_value(json_object_get(j, "label"));
-
-		size_t length = json_integer_value(json_object_get(j, "length"));
-
-		size_t               secret_len = 0;
-		const unsigned char* secret     = decode_hex(
-            json_string_value(json_object_get(j, "secret")),
-            &secret_len
-        );
-
-		const unsigned char* out_want =
-			decode_hex(json_string_value(json_object_get(j, "out")), NULL);
-
-		const unsigned char* out_have = cmls_crypto_DeriveTreeSecret(
-			suite,
-			secret,
-			secret_len,
-			label,
-			generation,
-			length
-		);
-		assert(memcmp(out_want, out_have, length) == 0);
-
-		free((char*) out_have);
-		free((char*) out_want);
-		free((char*) secret);
-	}
+end:
+	if(pkey != NULL) EVP_PKEY_free(pkey);
+	if(msg.ptr != NULL) vec_free(&msg);
+	return ok;
 }
