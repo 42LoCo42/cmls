@@ -35,4 +35,6 @@ char* next_arg(int* argc, char*** argv);
 
 int json_opt_int(json_t* value);
 
+char* decode_hex(const char* hex, size_t* len);
+
 #endif

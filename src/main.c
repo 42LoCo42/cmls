@@ -2,6 +2,7 @@
 #include <jansson.h>
 #include <string.h>
 
+#include "serialize/serialize.h"
 #include "treemath/treemath.h"
 #include "utils/utils.h"
 
@@ -21,7 +22,10 @@ void usage() {
 
 void test(char* what) {
 	void (*func)(json_t*) = NULL;
-	if(strcmp(what, "treemath") == 0) func = cmls_treemath_test;
+	if(strcmp(what, "treemath") == 0)
+		func = cmls_treemath_test;
+	else if(strcmp(what, "serialize") == 0)
+		func = cmls_serialize_test;
 	if(func == NULL) usage();
 
 	printf("\e[1;33mRunning test %s...\e[m\n", what);
