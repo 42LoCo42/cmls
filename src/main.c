@@ -1,9 +1,7 @@
-#include <err.h>
-
 #include "crypto/crypto.h"
 #include "serialize/serialize.h"
 #include "treemath/treemath.h"
-#include "utils/utils.h"
+#include <err.h>
 
 #define die(...)                                                               \
 	{                                                                          \
@@ -69,7 +67,7 @@ int main(int argc, char** argv) {
 		char* what = next_arg(&argc, &argv);
 		if(what == NULL) usage();
 		test(what);
-	};
+	}
 
 	return 0;
 }
