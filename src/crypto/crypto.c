@@ -7,53 +7,102 @@
 #include <openssl/params.h>
 #include <openssl/sha.h>
 
-static EVP_KDF_CTX* ctx    = NULL;
-static size_t       kdf_nh = 0;
+cmls_CipherSuite cmls_ciphersuites[] = {
+	{
+		.hash        = SHA256,
+		.hash_name   = SN_sha256,
+		.hash_length = SHA256_DIGEST_LENGTH,
+	},
+	{
+		.hash        = SHA256,
+		.hash_name   = SN_sha256,
+		.hash_length = SHA256_DIGEST_LENGTH,
+	},
+	{
+		.hash        = SHA256,
+		.hash_name   = SN_sha256,
+		.hash_length = SHA256_DIGEST_LENGTH,
+	},
+	{
+		.hash        = SHA512,
+		.hash_name   = SN_sha512,
+		.hash_length = SHA512_DIGEST_LENGTH,
+	},
+	{
+		.hash        = SHA512,
+		.hash_name   = SN_sha512,
+		.hash_length = SHA512_DIGEST_LENGTH,
+	},
+	{
+		.hash        = SHA512,
+		.hash_name   = SN_sha512,
+		.hash_length = SHA512_DIGEST_LENGTH,
+	},
+	{
+		.hash        = SHA384,
+		.hash_name   = SN_sha384,
+		.hash_length = SHA384_DIGEST_LENGTH,
+	},
+};
+
+size_t cmls_max_ciphersuite =
+	sizeof(cmls_ciphersuites) / sizeof(cmls_ciphersuites[0]);
+
+static EVP_KDF_CTX* ctx = NULL;
 
 static void __attribute__((constructor)) lib_init() {
 	EVP_KDF* kdf = EVP_KDF_fetch(NULL, "HKDF", NULL);
 	ctx          = EVP_KDF_CTX_new(kdf);
 	EVP_KDF_free(kdf);
-
-	OSSL_PARAM  params[3] = {0};
-	OSSL_PARAM* p         = params;
-
-	int mode = EVP_KDF_HKDF_MODE_EXTRACT_ONLY;
-	*p++     = OSSL_PARAM_construct_int(OSSL_KDF_PARAM_MODE, &mode);
-	*p++     = OSSL_PARAM_construct_utf8_string(
-        OSSL_KDF_PARAM_DIGEST,
-        SN_sha256,
-        strlen(SN_sha256)
-    );
-	*p = OSSL_PARAM_construct_end();
-
-	EVP_KDF_CTX_set_params(ctx, params);
-
-	kdf_nh = EVP_KDF_CTX_get_kdf_size(ctx);
 }
 
 static void __attribute((destructor())) lib_free() {
 	EVP_KDF_CTX_free(ctx);
 }
 
+static void ctx_set_digest(cmls_CipherSuite suite) {
+	OSSL_PARAM params[] = {
+		OSSL_PARAM_construct_utf8_string(
+			OSSL_KDF_PARAM_DIGEST,
+			suite.hash_name,
+			strlen(suite.hash_name)
+		),
+		OSSL_PARAM_construct_end(),
+	};
+	EVP_KDF_CTX_set_params(ctx, params);
+}
+
+static size_t cmls_crypto_kdf_nh(cmls_CipherSuite suite) {
+	ctx_set_digest(suite);
+	int        mode     = EVP_KDF_HKDF_MODE_EXTRACT_ONLY;
+	OSSL_PARAM params[] = {
+		OSSL_PARAM_construct_int(OSSL_KDF_PARAM_MODE, &mode),
+		OSSL_PARAM_construct_end(),
+	};
+	EVP_KDF_CTX_set_params(ctx, params);
+	return EVP_KDF_CTX_get_kdf_size(ctx);
+}
+
 unsigned char* cmls_crypto_RefHash(
+	cmls_CipherSuite     suite,
 	const char*          label,
 	const unsigned char* data,
 	size_t               data_len
 ) {
-	unsigned char* hash = malloc(SHA256_DIGEST_LENGTH);
+	unsigned char* hash = malloc(suite.hash_length);
 	if(hash == NULL) return NULL;
 
 	bytes vec = {0};
 	cmls_serialize_encode((unsigned char*) label, strlen(label), &vec);
 	cmls_serialize_encode(data, data_len, &vec);
 
-	SHA256(vec.ptr, vec.len, hash);
+	suite.hash(vec.ptr, vec.len, hash);
 	vec_free(&vec);
 	return hash;
 }
 
 unsigned char* cmls_crypto_ExpandWithLabel(
+	cmls_CipherSuite     suite,
 	const unsigned char* secret,
 	size_t               secret_len,
 	const char*          label,
@@ -79,24 +128,24 @@ unsigned char* cmls_crypto_ExpandWithLabel(
 	cmls_serialize_encode(context, context_len, &info);
 
 	// create parameters
-	OSSL_PARAM  params[4] = {0};
-	OSSL_PARAM* p         = params;
-
-	int mode = EVP_KDF_HKDF_MODE_EXPAND_ONLY;
-	*p++     = OSSL_PARAM_construct_int(OSSL_KDF_PARAM_MODE, &mode);
-	*p++     = OSSL_PARAM_construct_octet_string(
-        OSSL_KDF_PARAM_KEY,
-        (void*) secret,
-        secret_len
-    );
-	*p++ = OSSL_PARAM_construct_octet_string(
-		OSSL_KDF_PARAM_INFO,
-		info.ptr,
-		info.len
-	);
-	*p = OSSL_PARAM_construct_end();
+	int        mode     = EVP_KDF_HKDF_MODE_EXPAND_ONLY;
+	OSSL_PARAM params[] = {
+		OSSL_PARAM_construct_int(OSSL_KDF_PARAM_MODE, &mode),
+		OSSL_PARAM_construct_octet_string(
+			OSSL_KDF_PARAM_KEY,
+			(void*) secret,
+			secret_len
+		),
+		OSSL_PARAM_construct_octet_string(
+			OSSL_KDF_PARAM_INFO,
+			info.ptr,
+			info.len
+		),
+		OSSL_PARAM_construct_end(),
+	};
 
 	// run KDF
+	ctx_set_digest(suite);
 	EVP_KDF_derive(ctx, out, length, params);
 
 end:
@@ -106,21 +155,24 @@ end:
 }
 
 unsigned char* cmls_crypto_DeriveSecret(
+	cmls_CipherSuite     suite,
 	const unsigned char* secret,
 	size_t               secret_len,
 	const char*          label
 ) {
 	return cmls_crypto_ExpandWithLabel(
+		suite,
 		secret,
 		secret_len,
 		label,
 		(unsigned char*) "",
 		0,
-		kdf_nh
+		cmls_crypto_kdf_nh(suite)
 	);
 }
 
 unsigned char* cmls_crypto_DeriveTreeSecret(
+	cmls_CipherSuite     suite,
 	const unsigned char* secret,
 	size_t               secret_len,
 	const char*          label,
@@ -135,6 +187,7 @@ unsigned char* cmls_crypto_DeriveTreeSecret(
 	context[3] = generation >> (8 * 0) % 0x100;
 
 	return cmls_crypto_ExpandWithLabel(
+		suite,
 		secret,
 		secret_len,
 		label,
@@ -145,17 +198,19 @@ unsigned char* cmls_crypto_DeriveTreeSecret(
 }
 
 void cmls_crypto_test(const json_t* entry) {
-	int cipher_suite =
+	size_t suite_index_1 =
 		json_integer_value(json_object_get(entry, "cipher_suite"));
 
-	if(cipher_suite > 3) {
+	if(suite_index_1 > cmls_max_ciphersuite) {
 		fprintf(
 			stderr,
-			"\e[1;31mUnsupported cipher suite: %d\e[m\n",
-			cipher_suite
+			"\e[1;31mUnsupported cipher suite: %zu\e[m\n",
+			suite_index_1
 		);
 		return;
 	}
+
+	cmls_CipherSuite suite = cmls_ciphersuites[suite_index_1 - 1];
 
 	///// RefHash /////
 	{
@@ -173,7 +228,7 @@ void cmls_crypto_test(const json_t* entry) {
 			decode_hex(json_string_value(json_object_get(j, "out")), &hash_len);
 
 		const unsigned char* hash_have =
-			cmls_crypto_RefHash(label, data, data_len);
+			cmls_crypto_RefHash(suite, label, data, data_len);
 		assert(memcmp(hash_want, hash_have, hash_len) == 0);
 
 		free((char*) hash_have);
@@ -205,6 +260,7 @@ void cmls_crypto_test(const json_t* entry) {
 			decode_hex(json_string_value(json_object_get(j, "out")), NULL);
 
 		const unsigned char* out_have = cmls_crypto_ExpandWithLabel(
+			suite,
 			secret,
 			secret_len,
 			label,
@@ -232,12 +288,13 @@ void cmls_crypto_test(const json_t* entry) {
             &secret_len
         );
 
+		size_t               out_len = 0;
 		const unsigned char* out_want =
-			decode_hex(json_string_value(json_object_get(j, "out")), NULL);
+			decode_hex(json_string_value(json_object_get(j, "out")), &out_len);
 
 		const unsigned char* out_have =
-			cmls_crypto_DeriveSecret(secret, secret_len, label);
-		assert(memcmp(out_want, out_have, kdf_nh) == 0);
+			cmls_crypto_DeriveSecret(suite, secret, secret_len, label);
+		assert(memcmp(out_want, out_have, out_len) == 0);
 
 		free((char*) out_have);
 		free((char*) out_want);
@@ -265,6 +322,7 @@ void cmls_crypto_test(const json_t* entry) {
 			decode_hex(json_string_value(json_object_get(j, "out")), NULL);
 
 		const unsigned char* out_have = cmls_crypto_DeriveTreeSecret(
+			suite,
 			secret,
 			secret_len,
 			label,
