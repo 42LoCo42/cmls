@@ -10,6 +10,6 @@ int cmls_treemath_right(int node);
 int cmls_treemath_parent(int node, int leaves);
 int cmls_treemath_sibling(int node, int leaves);
 
-void cmls_treemath_test(json_t* entry);
+void cmls_treemath_test(const json_t* entry);
 
 #endif

@@ -1,7 +1,7 @@
 NAME    := cmls
 DEPS    := jansson
-CFLAGS  := -Wall -Wextra
-LDFLAGS :=
+CFLAGS  += -Wall -Wextra -Werror
+LDFLAGS += -lmd
 
 ################################################################################
 

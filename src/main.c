@@ -1,7 +1,6 @@
 #include <err.h>
-#include <jansson.h>
-#include <string.h>
 
+#include "crypto/crypto.h"
 #include "serialize/serialize.h"
 #include "treemath/treemath.h"
 #include "utils/utils.h"
@@ -21,11 +20,13 @@ void usage() {
 }
 
 void test(char* what) {
-	void (*func)(json_t*) = NULL;
+	void (*func)(const json_t*) = NULL;
 	if(strcmp(what, "treemath") == 0)
 		func = cmls_treemath_test;
 	else if(strcmp(what, "serialize") == 0)
 		func = cmls_serialize_test;
+	else if(strcmp(what, "crypto") == 0)
+		func = cmls_crypto_test;
 	if(func == NULL) usage();
 
 	printf("\e[1;33mRunning test %s...\e[m\n", what);
@@ -68,7 +69,7 @@ int main(int argc, char** argv) {
 		char* what = next_arg(&argc, &argv);
 		if(what == NULL) usage();
 		test(what);
-	}
+	};
 
 	return 0;
 }

@@ -27,7 +27,7 @@ void cmls_serialize_encode_header(size_t len, unsigned char* out) {
 	}
 }
 
-bool cmls_serialize_decode_header(unsigned char* data, size_t* len) {
+bool cmls_serialize_decode_header(const unsigned char* data, size_t* len) {
 	switch(data[0] >> 6) {
 	case 0:
 		*len = data[0];
@@ -45,7 +45,15 @@ bool cmls_serialize_decode_header(unsigned char* data, size_t* len) {
 	return true;
 }
 
-void cmls_serialize_test(json_t* entry) {
+void cmls_serialize_encode(const unsigned char* data, size_t len, bytes* vec) {
+	unsigned char header[4]  = {0};
+	size_t        header_len = cmls_serialize_length_length(len);
+	cmls_serialize_encode_header(len, header);
+	vec_push_all(vec, header, header_len);
+	vec_push_all(vec, data, len);
+}
+
+void cmls_serialize_test(const json_t* entry) {
 	unsigned char* header = (unsigned char*) decode_hex(
 		json_string_value(json_object_get(entry, "vlbytes_header")),
 		NULL

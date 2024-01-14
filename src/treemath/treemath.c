@@ -61,7 +61,7 @@ int cmls_treemath_sibling(int node, int leaves) {
 	}
 }
 
-void cmls_treemath_test(json_t* entry) {
+void cmls_treemath_test(const json_t* entry) {
 	int     leaves  = json_integer_value(json_object_get(entry, "n_leaves"));
 	int     nodes   = json_integer_value(json_object_get(entry, "n_nodes"));
 	int     root    = json_integer_value(json_object_get(entry, "root"));

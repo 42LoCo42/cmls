@@ -16,9 +16,9 @@ int json_opt_int(json_t* value) {
 	return json_integer_value(value);
 }
 
-char* decode_hex(const char* hex, size_t* len_out) {
-	size_t len = strlen(hex) / 2;
-	char*  res = malloc(len);
+unsigned char* decode_hex(const char* hex, size_t* len_out) {
+	size_t         len = strlen(hex) / 2;
+	unsigned char* res = malloc(len);
 	if(res == NULL) return res;
 
 	for(size_t i = 0; i < len; i++) {

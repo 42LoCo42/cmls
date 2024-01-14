@@ -13,6 +13,7 @@
 
           buildInputs = with pkgs; [
             jansson
+            libmd
           ];
 
           doCheck = true;
