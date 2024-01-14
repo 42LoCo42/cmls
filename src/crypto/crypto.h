@@ -18,6 +18,12 @@ unsigned char* cmls_crypto_ExpandWithLabel(
 	uint16_t             length
 );
 
+unsigned char* cmls_crypto_DeriveSecret(
+	const unsigned char* secret,
+	size_t               secret_len,
+	const char*          label
+);
+
 void cmls_crypto_test(const json_t* entry);
 
 #endif

@@ -1,6 +1,6 @@
 NAME    := cmls
 DEPS    := jansson openssl
-CFLAGS  := $(CFLAGS)  -Wall -Wextra -Werror -O3
+CFLAGS  := $(CFLAGS)  -Wall -Wextra -Werror -g
 LDFLAGS := $(LDFLAGS)
 
 ################################################################################
