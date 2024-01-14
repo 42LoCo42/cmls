@@ -1,7 +1,7 @@
 NAME    := cmls
-DEPS    := jansson libmd
-CFLAGS  += -Wall -Wextra -Werror -O3
-LDFLAGS +=
+DEPS    := jansson openssl
+CFLAGS  := $(CFLAGS)  -Wall -Wextra -Werror -O3
+LDFLAGS := $(LDFLAGS)
 
 ################################################################################
 

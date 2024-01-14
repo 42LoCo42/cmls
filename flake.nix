@@ -13,11 +13,13 @@
 
           buildInputs = with pkgs; [
             jansson
-            libmd
+            openssl_3_2
           ];
 
           buildPhase = "make -j $NIX_BUILD_CORES";
+
           doCheck = true;
+          checkPhase = "make test";
         };
 
         devShell = pkgs.mkShell {

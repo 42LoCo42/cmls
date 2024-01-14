@@ -2,9 +2,8 @@
 #define CMLS_CRYPTO_H
 
 #include <jansson.h>
-#include <stddef.h>
 
-char* cmls_crypto_refhash(
+unsigned char* cmls_crypto_refhash(
 	const char*          label,
 	const unsigned char* data,
 	size_t               data_len
