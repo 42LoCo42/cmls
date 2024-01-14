@@ -16,6 +16,7 @@
             libmd
           ];
 
+          buildPhase = "make -j $NIX_BUILD_CORES";
           doCheck = true;
         };
 
