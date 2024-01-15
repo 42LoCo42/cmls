@@ -10,6 +10,13 @@
 #define VECTOR_DBG_RUN(x)
 #endif
 
+#define die(...)                                                               \
+	{                                                                          \
+		fprintf(stderr, "%s:%d: ", __FILE__, __LINE__);                        \
+		warn(__VA_ARGS__);                                                     \
+		goto end;                                                              \
+	}
+
 #define Vector(type)                                                           \
 	struct {                                                                   \
 		type*  ptr;                                                            \

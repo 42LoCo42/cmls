@@ -1,17 +1,18 @@
 #include "crypto.h"
 #include "../serialize/serialize.h"
+#include "openssl/params.h"
 #include <err.h>
 #include <openssl/core_names.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/kdf.h>
 #include <openssl/sha.h>
+#include <stdio.h>
 
 #define odie(...)                                                              \
 	{                                                                          \
 		ERR_print_errors_fp(stderr);                                           \
-		warn(__VA_ARGS__);                                                     \
-		goto end;                                                              \
+		die(__VA_ARGS__);                                                      \
 	}
 
 cmls_CipherSuite cmls_ciphersuites[] = {
@@ -20,46 +21,55 @@ cmls_CipherSuite cmls_ciphersuites[] = {
 		.hash_name   = SN_sha256,
 		.hash_length = SHA256_DIGEST_LENGTH,
 
-		.sign_type = EVP_PKEY_ED25519,
+		.key_type = EVP_PKEY_ED25519,
 	},
 	{
 		.skip        = true,
 		.hash        = SHA256,
 		.hash_name   = SN_sha256,
 		.hash_length = SHA256_DIGEST_LENGTH,
+
+		.key_type  = EVP_PKEY_EC,
+		.key_group = "prime256v1",
 	},
 	{
 		.hash        = SHA256,
 		.hash_name   = SN_sha256,
 		.hash_length = SHA256_DIGEST_LENGTH,
 
-		.sign_type = EVP_PKEY_ED25519,
+		.key_type = EVP_PKEY_ED25519,
 	},
 	{
 		.hash        = SHA512,
 		.hash_name   = SN_sha512,
 		.hash_length = SHA512_DIGEST_LENGTH,
 
-		.sign_type = EVP_PKEY_ED448,
+		.key_type = EVP_PKEY_ED448,
 	},
 	{
 		.skip        = true,
 		.hash        = SHA512,
 		.hash_name   = SN_sha512,
 		.hash_length = SHA512_DIGEST_LENGTH,
+
+		.key_type  = EVP_PKEY_EC,
+		.key_group = "secp521r1",
 	},
 	{
 		.hash        = SHA512,
 		.hash_name   = SN_sha512,
 		.hash_length = SHA512_DIGEST_LENGTH,
 
-		.sign_type = EVP_PKEY_ED448,
+		.key_type = EVP_PKEY_ED448,
 	},
 	{
 		.skip        = true,
 		.hash        = SHA384,
 		.hash_name   = SN_sha384,
 		.hash_length = SHA384_DIGEST_LENGTH,
+
+		.key_type  = EVP_PKEY_EC,
+		.key_group = "secp384r1",
 	},
 };
 
@@ -103,6 +113,45 @@ static size_t cmls_crypto_kdf_nh(cmls_CipherSuite suite) {
 	};
 	EVP_KDF_CTX_set_params(kdf_ctx, params);
 	return EVP_KDF_CTX_get_kdf_size(kdf_ctx);
+}
+
+EVP_PKEY* cmls_crypto_mkKey(
+	cmls_CipherSuite     suite,
+	const unsigned char* priv,
+	size_t               priv_len
+) {
+	EVP_PKEY_CTX* pkey_ctx = NULL;
+	EVP_PKEY*     pkey     = NULL;
+
+	pkey_ctx = EVP_PKEY_CTX_new_id(suite.key_type, NULL);
+	if(pkey_ctx == NULL) odie("pkey ctx init");
+
+	OSSL_PARAM  params[3] = {0};
+	OSSL_PARAM* p         = params;
+
+	*p++ = OSSL_PARAM_construct_BN(
+		OSSL_PKEY_PARAM_PRIV_KEY,
+		(unsigned char*) priv,
+		priv_len
+	);
+
+	if(suite.key_group != NULL) {
+		*p++ = OSSL_PARAM_construct_utf8_string(
+			OSSL_PKEY_PARAM_GROUP_NAME,
+			(char*) suite.key_group,
+			strlen(suite.key_group)
+		);
+	}
+
+	*p = OSSL_PARAM_construct_end();
+
+	if(EVP_PKEY_fromdata_init(pkey_ctx) <= 0) odie("fromdata init");
+	if(EVP_PKEY_fromdata(pkey_ctx, &pkey, EVP_PKEY_KEYPAIR, params) <= 0)
+		odie("fromdata");
+
+end:
+	if(pkey_ctx != NULL) EVP_PKEY_CTX_free(pkey_ctx);
+	return pkey;
 }
 
 unsigned char* cmls_crypto_RefHash(
@@ -261,7 +310,7 @@ void cmls_crypto_SignWithLabel(
 	msg = mkSignContent(label, content, content_len);
 
 	// create key
-	pkey = EVP_PKEY_new_raw_private_key(suite.sign_type, NULL, key, key_len);
+	pkey = EVP_PKEY_new_raw_private_key(suite.key_type, NULL, key, key_len);
 	if(pkey == NULL) odie("pkey init");
 
 	out_len = EVP_PKEY_get_size(pkey);
@@ -300,7 +349,7 @@ bool cmls_crypto_VerifyWithLabel(
 	msg = mkSignContent(label, content, content_len);
 
 	// create key
-	if((pkey = EVP_PKEY_new_raw_public_key(suite.sign_type, NULL, key, key_len)
+	if((pkey = EVP_PKEY_new_raw_public_key(suite.key_type, NULL, key, key_len)
 	   ) == NULL)
 		odie("pkey init");
 

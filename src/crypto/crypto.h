@@ -2,6 +2,7 @@
 #define CMLS_CRYPTO_H
 
 #include <jansson.h>
+#include <openssl/evp.h>
 #include <stdbool.h>
 
 typedef struct {
@@ -15,11 +16,18 @@ typedef struct {
 	char*  hash_name;
 	size_t hash_length;
 
-	int sign_type;
+	int         key_type;
+	const char* key_group;
 } cmls_CipherSuite;
 
 extern cmls_CipherSuite cmls_ciphersuites[];
 extern size_t           cmls_max_ciphersuite;
+
+EVP_PKEY* cmls_crypto_mkKey(
+	cmls_CipherSuite     suite,
+	const unsigned char* priv,
+	size_t               priv_len
+);
 
 unsigned char* cmls_crypto_RefHash(
 	cmls_CipherSuite     suite,
