@@ -30,7 +30,7 @@ run: $(NAME)
 .PHONY: run
 
 test: $(NAME)
-	bash ./test.sh ./$<
+	valgrind ./$< testall
 .PHONY: test
 
 install: $(NAME)

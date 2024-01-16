@@ -1,11 +1,12 @@
 #include "crypto/crypto.h"
 #include "serialize/serialize.h"
 #include "treemath/treemath.h"
+#include <string.h>
 
 static char* ARGV0;
 
 void usage() {
-	printf("Usage: %s [test <what>]\n", ARGV0);
+	printf("Usage: %s <test <what> | testall>\n", ARGV0);
 	exit(1);
 }
 
@@ -59,6 +60,10 @@ int main(int argc, char** argv) {
 		char* what = next_arg(&argc, &argv);
 		if(what == NULL) usage();
 		test(what);
+	} else if(strcmp(mode, "testall") == 0) {
+		test("crypto");
+		test("serialize");
+		test("treemath");
 	}
 
 	return 0;
