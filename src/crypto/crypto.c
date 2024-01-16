@@ -1,19 +1,9 @@
 #include "crypto.h"
 #include "../serialize/serialize.h"
-#include "openssl/params.h"
-#include <err.h>
 #include <openssl/core_names.h>
-#include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/kdf.h>
 #include <openssl/sha.h>
-#include <stdio.h>
-
-#define odie(...)                                                              \
-	{                                                                          \
-		ERR_print_errors_fp(stderr);                                           \
-		die(__VA_ARGS__);                                                      \
-	}
 
 cmls_CipherSuite cmls_ciphersuites[] = {
 	{
@@ -24,7 +14,8 @@ cmls_CipherSuite cmls_ciphersuites[] = {
 		.key_type = EVP_PKEY_ED25519,
 	},
 	{
-		.skip        = true,
+		.skip = true,
+
 		.hash        = SHA256,
 		.hash_name   = SN_sha256,
 		.hash_length = SHA256_DIGEST_LENGTH,
@@ -47,7 +38,8 @@ cmls_CipherSuite cmls_ciphersuites[] = {
 		.key_type = EVP_PKEY_ED448,
 	},
 	{
-		.skip        = true,
+		.skip = true,
+
 		.hash        = SHA512,
 		.hash_name   = SN_sha512,
 		.hash_length = SHA512_DIGEST_LENGTH,
@@ -63,7 +55,8 @@ cmls_CipherSuite cmls_ciphersuites[] = {
 		.key_type = EVP_PKEY_ED448,
 	},
 	{
-		.skip        = true,
+		.skip = true,
+
 		.hash        = SHA384,
 		.hash_name   = SN_sha384,
 		.hash_length = SHA384_DIGEST_LENGTH,
@@ -115,11 +108,8 @@ static size_t cmls_crypto_kdf_nh(cmls_CipherSuite suite) {
 	return EVP_KDF_CTX_get_kdf_size(kdf_ctx);
 }
 
-EVP_PKEY* cmls_crypto_mkKey(
-	cmls_CipherSuite     suite,
-	const unsigned char* priv,
-	size_t               priv_len
-) {
+EVP_PKEY*
+cmls_crypto_mkKey(cmls_CipherSuite suite, bytes data, bool is_public) {
 	EVP_PKEY_CTX* pkey_ctx = NULL;
 	EVP_PKEY*     pkey     = NULL;
 
@@ -129,17 +119,31 @@ EVP_PKEY* cmls_crypto_mkKey(
 	OSSL_PARAM  params[3] = {0};
 	OSSL_PARAM* p         = params;
 
-	*p++ = OSSL_PARAM_construct_BN(
-		OSSL_PKEY_PARAM_PRIV_KEY,
-		(unsigned char*) priv,
-		priv_len
-	);
-
-	if(suite.key_group != NULL) {
+	if(suite.key_type == EVP_PKEY_EC) {
 		*p++ = OSSL_PARAM_construct_utf8_string(
 			OSSL_PKEY_PARAM_GROUP_NAME,
 			(char*) suite.key_group,
 			strlen(suite.key_group)
+		);
+	}
+
+	if(is_public) {
+		*p++ = OSSL_PARAM_construct_octet_string(
+			OSSL_PKEY_PARAM_PUB_KEY,
+			data.ptr,
+			data.len
+		);
+	} else if(suite.key_type == EVP_PKEY_EC) {
+		*p++ = OSSL_PARAM_construct_BN(
+			OSSL_PKEY_PARAM_PRIV_KEY,
+			data.ptr,
+			data.len
+		);
+	} else {
+		*p++ = OSSL_PARAM_construct_octet_string(
+			OSSL_PKEY_PARAM_PRIV_KEY,
+			data.ptr,
+			data.len
 		);
 	}
 
@@ -154,49 +158,42 @@ end:
 	return pkey;
 }
 
-unsigned char* cmls_crypto_RefHash(
-	cmls_CipherSuite     suite,
-	const char*          label,
-	const unsigned char* data,
-	size_t               data_len
+bytes cmls_crypto_RefHash(
+	cmls_CipherSuite suite,
+	const char*      label,
+	bytes            value
 ) {
-	unsigned char* hash = malloc(suite.hash_length);
-	if(hash == NULL) return NULL;
+	bytes hash = {.len = suite.hash_length};
+	vec_extend(&hash);
 
 	bytes vec = {0};
-	cmls_serialize_encode((unsigned char*) label, strlen(label), &vec);
-	cmls_serialize_encode(data, data_len, &vec);
+	cmls_serialize_encode(cstr2bs(label), &vec);
+	cmls_serialize_encode(value, &vec);
 
-	suite.hash(vec.ptr, vec.len, hash);
+	suite.hash(vec.ptr, vec.len, hash.ptr);
 	vec_free(&vec);
 	return hash;
 }
 
-unsigned char* cmls_crypto_ExpandWithLabel(
-	cmls_CipherSuite     suite,
-	const unsigned char* secret,
-	size_t               secret_len,
-	const char*          label,
-	const unsigned char* context,
-	size_t               context_len,
-	uint16_t             length
+bytes cmls_crypto_ExpandWithLabel(
+	cmls_CipherSuite suite,
+	bytes            secret,
+	const char*      label,
+	bytes            context,
+	uint16_t         length
 ) {
-	unsigned char* out        = NULL;
-	char*          real_label = NULL;
-	bytes          info       = {0};
+	bytes out = {.len = length};
+	vec_extend(&out);
 
-	if((out = malloc(length)) == NULL) goto end;
+	char* real_label = NULL;
+	bytes info       = {0};
 
 	// create KDFLabel
 	if(asprintf(&real_label, "MLS 1.0 %s", label) < 0) goto end;
 	vec_push(&info, length >> (8 * 1));
 	vec_push(&info, length >> (8 * 0));
-	cmls_serialize_encode(
-		(unsigned char*) real_label,
-		strlen(real_label),
-		&info
-	);
-	cmls_serialize_encode(context, context_len, &info);
+	cmls_serialize_encode(cstr2bs(real_label), &info);
+	cmls_serialize_encode(context, &info);
 
 	// create parameters
 	int        mode     = EVP_KDF_HKDF_MODE_EXPAND_ONLY;
@@ -204,8 +201,8 @@ unsigned char* cmls_crypto_ExpandWithLabel(
 		OSSL_PARAM_construct_int(OSSL_KDF_PARAM_MODE, &mode),
 		OSSL_PARAM_construct_octet_string(
 			OSSL_KDF_PARAM_KEY,
-			(void*) secret,
-			secret_len
+			secret.ptr,
+			secret.len
 		),
 		OSSL_PARAM_construct_octet_string(
 			OSSL_KDF_PARAM_INFO,
@@ -217,7 +214,7 @@ unsigned char* cmls_crypto_ExpandWithLabel(
 
 	// run KDF
 	ctx_set_digest(suite);
-	EVP_KDF_derive(kdf_ctx, out, length, params);
+	EVP_KDF_derive(kdf_ctx, out.ptr, length, params);
 
 end:
 	if(info.ptr != NULL) vec_free(&info);
@@ -225,141 +222,106 @@ end:
 	return out;
 }
 
-unsigned char* cmls_crypto_DeriveSecret(
-	cmls_CipherSuite     suite,
-	const unsigned char* secret,
-	size_t               secret_len,
-	const char*          label
+bytes cmls_crypto_DeriveSecret(
+	cmls_CipherSuite suite,
+	bytes            secret,
+	const char*      label
 ) {
 	return cmls_crypto_ExpandWithLabel(
 		suite,
 		secret,
-		secret_len,
 		label,
-		(unsigned char*) "",
-		0,
+		(bytes){0},
 		cmls_crypto_kdf_nh(suite)
 	);
 }
 
-unsigned char* cmls_crypto_DeriveTreeSecret(
-	cmls_CipherSuite     suite,
-	const unsigned char* secret,
-	size_t               secret_len,
-	const char*          label,
-	uint32_t             generation,
-	uint16_t             length
+bytes cmls_crypto_DeriveTreeSecret(
+	cmls_CipherSuite suite,
+	bytes            secret,
+	const char*      label,
+	uint32_t         generation,
+	uint16_t         length
 ) {
-	unsigned char context[4] = {0};
+	unsigned char data[4] = {0};
 
-	context[0] = generation >> (8 * 3) % 0x100;
-	context[1] = generation >> (8 * 2) % 0x100;
-	context[2] = generation >> (8 * 1) % 0x100;
-	context[3] = generation >> (8 * 0) % 0x100;
+	data[0] = generation >> (8 * 3) % 0x100;
+	data[1] = generation >> (8 * 2) % 0x100;
+	data[2] = generation >> (8 * 1) % 0x100;
+	data[3] = generation >> (8 * 0) % 0x100;
 
-	return cmls_crypto_ExpandWithLabel(
-		suite,
-		secret,
-		secret_len,
-		label,
-		context,
-		sizeof(context),
-		length
-	);
+	bytes context = {.ptr = data, .len = sizeof(data)};
+	return cmls_crypto_ExpandWithLabel(suite, secret, label, context, length);
 }
 
-static bytes mkSignContent(
-	const char*          label,
-	const unsigned char* content,
-	size_t               content_len
-) {
+static bytes mkSignContent(const char* label, bytes content) {
 	char* real_label = NULL;
 	bytes msg        = {0};
 
 	if(asprintf(&real_label, "MLS 1.0 %s", label) < 0) goto end;
-	cmls_serialize_encode(
-		(unsigned char*) real_label,
-		strlen(real_label),
-		&msg
-	);
-	cmls_serialize_encode(content, content_len, &msg);
+	cmls_serialize_encode(cstr2bs(real_label), &msg);
+	cmls_serialize_encode(content, &msg);
 
 end:
 	if(real_label != NULL) free(real_label);
 	return msg;
 }
 
-void cmls_crypto_SignWithLabel(
-	cmls_CipherSuite     suite,
-	const unsigned char* key,
-	size_t               key_len,
-	const char*          label,
-	const unsigned char* content,
-	size_t               content_len,
-	unsigned char**      sig,
-	size_t*              sig_len
+bytes cmls_crypto_SignWithLabel(
+	EVP_PKEY*   secret_key,
+	const char* label,
+	bytes       content
 ) {
 	EVP_MD_CTX_reset(md_ctx);
 
-	bytes          msg     = {0};
-	EVP_PKEY*      pkey    = NULL;
-	unsigned char* out     = NULL;
-	size_t         out_len = 0;
+	bytes msg = {0};
+	bytes sig = {0};
 
 	// create message
-	msg = mkSignContent(label, content, content_len);
+	msg = mkSignContent(label, content);
 
-	// create key
-	pkey = EVP_PKEY_new_raw_private_key(suite.key_type, NULL, key, key_len);
-	if(pkey == NULL) odie("pkey init");
-
-	out_len = EVP_PKEY_get_size(pkey);
-	if((out = OPENSSL_zalloc(out_len)) == NULL) odie("alloc sig");
+	sig.len = EVP_PKEY_get_size(secret_key);
+	vec_extend(&sig);
 
 	// create signature
-	if(EVP_DigestSignInit_ex(md_ctx, NULL, NULL, NULL, NULL, pkey, NULL) <= 0)
+	if(EVP_DigestSignInit_ex(
+		   md_ctx,
+		   NULL,
+		   NULL,
+		   NULL,
+		   NULL,
+		   secret_key,
+		   NULL
+	   ) <= 0)
 		odie("DigestSign init");
-	if(EVP_DigestSign(md_ctx, out, &out_len, msg.ptr, msg.len) <= 0)
+	if(EVP_DigestSign(md_ctx, sig.ptr, &sig.len, msg.ptr, msg.len) <= 0)
 		odie("DigestSign");
 
 end:
-	if(pkey != NULL) EVP_PKEY_free(pkey);
 	if(msg.ptr != NULL) vec_free(&msg);
-	*sig     = out;
-	*sig_len = out_len;
+	return sig;
 }
 
 bool cmls_crypto_VerifyWithLabel(
-	cmls_CipherSuite     suite,
-	const unsigned char* key,
-	size_t               key_len,
-	const char*          label,
-	const unsigned char* content,
-	size_t               content_len,
-	const unsigned char* sig,
-	size_t               sig_len
+	EVP_PKEY*   public_key,
+	const char* label,
+	bytes       content,
+	bytes       sig
 ) {
 	EVP_MD_CTX_reset(md_ctx);
 
-	bytes     msg  = {0};
-	EVP_PKEY* pkey = NULL;
-	bool      ok   = false;
+	bytes msg = {0};
+	bool  ok  = false;
 
 	// create message
-	msg = mkSignContent(label, content, content_len);
-
-	// create key
-	if((pkey = EVP_PKEY_new_raw_public_key(suite.key_type, NULL, key, key_len)
-	   ) == NULL)
-		odie("pkey init");
+	msg = mkSignContent(label, content);
 
 	// perform verification
-	if(EVP_DigestVerifyInit(md_ctx, NULL, NULL, NULL, pkey) <= 0)
+	if(EVP_DigestVerifyInit(md_ctx, NULL, NULL, NULL, public_key) <= 0)
 		odie("DigestVerify init");
-	ok = EVP_DigestVerify(md_ctx, sig, sig_len, msg.ptr, msg.len);
+	ok = EVP_DigestVerify(md_ctx, sig.ptr, sig.len, msg.ptr, msg.len);
 
 end:
-	if(pkey != NULL) EVP_PKEY_free(pkey);
 	if(msg.ptr != NULL) vec_free(&msg);
 	return ok;
 }

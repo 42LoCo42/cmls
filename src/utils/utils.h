@@ -1,20 +1,22 @@
 #ifndef CMLS_UTILS_H
 #define CMLS_UTILS_H
 
+#include <err.h>
 #include <jansson.h>
+#include <openssl/err.h>
 #include <string.h>
-
-#ifdef VECTOR_DBG
-#define VECTOR_DBG_RUN(x) x
-#else
-#define VECTOR_DBG_RUN(x)
-#endif
 
 #define die(...)                                                               \
 	{                                                                          \
 		fprintf(stderr, "%s:%d: ", __FILE__, __LINE__);                        \
 		warn(__VA_ARGS__);                                                     \
 		goto end;                                                              \
+	}
+
+#define odie(...)                                                              \
+	{                                                                          \
+		ERR_print_errors_fp(stderr);                                           \
+		die(__VA_ARGS__);                                                      \
 	}
 
 #define Vector(type)                                                           \
@@ -27,9 +29,6 @@
 #define vec_extend(vec)                                                        \
 	if((vec)->len > (vec)->cap) {                                              \
 		(vec)->cap = (double) (vec)->len * 1.5;                                \
-		VECTOR_DBG_RUN(                                                        \
-			printf("len = %zu, cap = %zu\n", (vec)->len, (vec)->cap)           \
-		);                                                                     \
 		(vec)->ptr =                                                           \
 			reallocarray((vec)->ptr, (vec)->cap, sizeof(*(vec)->ptr));         \
 	}
@@ -60,11 +59,12 @@
 	}
 
 typedef Vector(unsigned char) bytes;
+bytes cstr2bs(const char* cstr);
 
 char* next_arg(int* argc, char*** argv);
 
 int json_opt_int(json_t* value);
 
-unsigned char* decode_hex(const char* hex, size_t* len);
+bytes decode_hex(const char* hex);
 
 #endif

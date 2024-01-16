@@ -1,10 +1,6 @@
-#include "../utils/utils.h"
 #include "crypto.h"
-#include "jansson.h"
 #include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <openssl/evp.h>
 
 void cmls_crypto_test(const json_t* entry) {
 	size_t suite_index_1 =
@@ -21,7 +17,11 @@ void cmls_crypto_test(const json_t* entry) {
 
 	cmls_CipherSuite suite = cmls_ciphersuites[suite_index_1 - 1];
 	if(suite.skip) {
-		fprintf(stderr, "\e[1;31mSkipping suite %zu\e[m\n", suite_index_1);
+		fprintf(
+			stderr,
+			"\e[1;31mSkipping cipher suite: %zu\e[m\n",
+			suite_index_1
+		);
 		return;
 	}
 
@@ -30,63 +30,47 @@ void cmls_crypto_test(const json_t* entry) {
 		const json_t* j     = json_object_get(entry, "ref_hash");
 		const char*   label = json_string_value(json_object_get(j, "label"));
 
-		size_t               data_len = 0;
-		const unsigned char* data     = decode_hex(
-            json_string_value(json_object_get(j, "value")),
-            &data_len
-        );
+		bytes data = decode_hex(json_string_value(json_object_get(j, "value")));
 
-		size_t               hash_len = 0;
-		const unsigned char* hash_want =
-			decode_hex(json_string_value(json_object_get(j, "out")), &hash_len);
+		bytes hash_want =
+			decode_hex(json_string_value(json_object_get(j, "out")));
 
-		const unsigned char* hash_have =
-			cmls_crypto_RefHash(suite, label, data, data_len);
-		assert(memcmp(hash_want, hash_have, hash_len) == 0);
+		bytes hash_have = cmls_crypto_RefHash(suite, label, data);
+		assert(hash_want.len == hash_have.len);
+		assert(memcmp(hash_want.ptr, hash_have.ptr, hash_want.len) == 0);
 
-		free((char*) hash_have);
-		free((char*) hash_want);
-		free((char*) data);
+		vec_free(&hash_have);
+		vec_free(&hash_want);
+		vec_free(&data);
 	}
 
 	///// ExpandWithLabel /////
 	{
 		const json_t* j = json_object_get(entry, "expand_with_label");
 
-		size_t               context_len = 0;
-		const unsigned char* context     = decode_hex(
-            json_string_value(json_object_get(j, "context")),
-            &context_len
-        );
+		bytes context =
+
+			decode_hex(json_string_value(json_object_get(j, "context")));
 
 		const char* label = json_string_value(json_object_get(j, "label"));
 
 		size_t length = json_integer_value(json_object_get(j, "length"));
 
-		size_t               secret_len = 0;
-		const unsigned char* secret     = decode_hex(
-            json_string_value(json_object_get(j, "secret")),
-            &secret_len
-        );
+		bytes secret =
+			decode_hex(json_string_value(json_object_get(j, "secret")));
 
-		const unsigned char* out_want =
-			decode_hex(json_string_value(json_object_get(j, "out")), NULL);
+		bytes out_want =
+			decode_hex(json_string_value(json_object_get(j, "out")));
 
-		const unsigned char* out_have = cmls_crypto_ExpandWithLabel(
-			suite,
-			secret,
-			secret_len,
-			label,
-			context,
-			context_len,
-			length
-		);
-		assert(memcmp(out_want, out_have, length) == 0);
+		bytes out_have =
+			cmls_crypto_ExpandWithLabel(suite, secret, label, context, length);
+		assert(out_want.len == out_have.len);
+		assert(memcmp(out_want.ptr, out_have.ptr, out_want.len) == 0);
 
-		free((char*) out_have);
-		free((char*) out_want);
-		free((char*) secret);
-		free((char*) context);
+		vec_free(&out_have);
+		vec_free(&out_want);
+		vec_free(&secret);
+		vec_free(&context);
 	}
 
 	///// DeriveSecret /////
@@ -95,23 +79,19 @@ void cmls_crypto_test(const json_t* entry) {
 
 		const char* label = json_string_value(json_object_get(j, "label"));
 
-		size_t               secret_len = 0;
-		const unsigned char* secret     = decode_hex(
-            json_string_value(json_object_get(j, "secret")),
-            &secret_len
-        );
+		bytes secret =
+			decode_hex(json_string_value(json_object_get(j, "secret")));
 
-		size_t               out_len = 0;
-		const unsigned char* out_want =
-			decode_hex(json_string_value(json_object_get(j, "out")), &out_len);
+		bytes out_want =
+			decode_hex(json_string_value(json_object_get(j, "out")));
 
-		const unsigned char* out_have =
-			cmls_crypto_DeriveSecret(suite, secret, secret_len, label);
-		assert(memcmp(out_want, out_have, out_len) == 0);
+		bytes out_have = cmls_crypto_DeriveSecret(suite, secret, label);
+		assert(out_want.len == out_have.len);
+		assert(memcmp(out_want.ptr, out_have.ptr, out_want.len) == 0);
 
-		free((char*) out_have);
-		free((char*) out_want);
-		free((char*) secret);
+		vec_free(&out_have);
+		vec_free(&out_want);
+		vec_free(&secret);
 	}
 
 	///// DeriveTreeSecret /////
@@ -125,98 +105,62 @@ void cmls_crypto_test(const json_t* entry) {
 
 		size_t length = json_integer_value(json_object_get(j, "length"));
 
-		size_t               secret_len = 0;
-		const unsigned char* secret     = decode_hex(
-            json_string_value(json_object_get(j, "secret")),
-            &secret_len
-        );
+		bytes secret =
+			decode_hex(json_string_value(json_object_get(j, "secret")));
 
-		const unsigned char* out_want =
-			decode_hex(json_string_value(json_object_get(j, "out")), NULL);
+		bytes out_want =
+			decode_hex(json_string_value(json_object_get(j, "out")));
 
-		const unsigned char* out_have = cmls_crypto_DeriveTreeSecret(
+		bytes out_have = cmls_crypto_DeriveTreeSecret(
 			suite,
 			secret,
-			secret_len,
 			label,
 			generation,
 			length
 		);
-		assert(memcmp(out_want, out_have, length) == 0);
+		assert(out_want.len == out_have.len);
+		assert(memcmp(out_want.ptr, out_have.ptr, out_want.len) == 0);
 
-		free((char*) out_have);
-		free((char*) out_want);
-		free((char*) secret);
+		vec_free(&out_have);
+		vec_free(&out_want);
+		vec_free(&secret);
 	}
 
 	///// SignWithLabel /////
 	{
 		const json_t* j = json_object_get(entry, "sign_with_label");
 
-		size_t               content_len = 0;
-		const unsigned char* content     = decode_hex(
-            json_string_value(json_object_get(j, "content")),
-            &content_len
-        );
+		bytes content =
+			decode_hex(json_string_value(json_object_get(j, "content")));
 
 		const char* label = json_string_value(json_object_get(j, "label"));
 
-		size_t               priv_len = 0;
-		const unsigned char* priv     = decode_hex(
-            json_string_value(json_object_get(j, "priv")),
-            &priv_len
-        );
+		bytes priv = decode_hex(json_string_value(json_object_get(j, "priv")));
 
-		size_t               pub_len = 0;
-		const unsigned char* pub =
-			decode_hex(json_string_value(json_object_get(j, "pub")), &pub_len);
+		bytes pub = decode_hex(json_string_value(json_object_get(j, "pub")));
 
-		size_t               sig_want_len = 0;
-		const unsigned char* sig_want     = decode_hex(
-            json_string_value(json_object_get(j, "signature")),
-            &sig_want_len
-        );
+		bytes sig_want =
+			decode_hex(json_string_value(json_object_get(j, "signature")));
 
-		assert(cmls_crypto_VerifyWithLabel(
-			suite,
-			pub,
-			pub_len,
-			label,
-			content,
-			content_len,
-			sig_want,
-			sig_want_len
-		));
+		EVP_PKEY* secret_key = cmls_crypto_mkKey(suite, priv, false);
+		EVP_PKEY* public_key = cmls_crypto_mkKey(suite, pub, true);
 
-		unsigned char* sig_have     = NULL;
-		size_t         sig_have_len = 0;
-		cmls_crypto_SignWithLabel(
-			suite,
-			priv,
-			priv_len,
-			label,
-			content,
-			content_len,
-			&sig_have,
-			&sig_have_len
+		assert(cmls_crypto_VerifyWithLabel(public_key, label, content, sig_want)
 		);
-		assert(memcmp(sig_want, sig_have, sig_want_len) == 0);
 
-		assert(cmls_crypto_VerifyWithLabel(
-			suite,
-			pub,
-			pub_len,
-			label,
-			content,
-			content_len,
-			sig_have,
-			sig_have_len
-		));
+		bytes sig_have = cmls_crypto_SignWithLabel(secret_key, label, content);
+		assert(sig_want.len == sig_have.len);
+		assert(memcmp(sig_want.ptr, sig_have.ptr, sig_want.len) == 0);
+		assert(cmls_crypto_VerifyWithLabel(public_key, label, content, sig_have)
+		);
 
-		free((char*) sig_have);
-		free((char*) sig_want);
-		free((char*) pub);
-		free((char*) priv);
-		free((char*) content);
+		EVP_PKEY_free(public_key);
+		EVP_PKEY_free(secret_key);
+
+		vec_free(&sig_have);
+		vec_free(&sig_want);
+		vec_free(&pub);
+		vec_free(&priv);
+		vec_free(&content);
 	}
 }

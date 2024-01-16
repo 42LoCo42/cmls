@@ -1,8 +1,8 @@
 #ifndef CMLS_CRYPTO_H
 #define CMLS_CRYPTO_H
 
+#include "../utils/utils.h"
 #include <jansson.h>
-#include <openssl/evp.h>
 #include <stdbool.h>
 
 typedef struct {
@@ -23,66 +23,47 @@ typedef struct {
 extern cmls_CipherSuite cmls_ciphersuites[];
 extern size_t           cmls_max_ciphersuite;
 
-EVP_PKEY* cmls_crypto_mkKey(
-	cmls_CipherSuite     suite,
-	const unsigned char* priv,
-	size_t               priv_len
+EVP_PKEY* cmls_crypto_mkKey(cmls_CipherSuite suite, bytes data, bool is_public);
+
+bytes cmls_crypto_RefHash(
+	cmls_CipherSuite suite,
+	const char*      label,
+	bytes            value
 );
 
-unsigned char* cmls_crypto_RefHash(
-	cmls_CipherSuite     suite,
-	const char*          label,
-	const unsigned char* data,
-	size_t               data_len
+bytes cmls_crypto_ExpandWithLabel(
+	cmls_CipherSuite suite,
+	bytes            secret,
+	const char*      label,
+	bytes            context,
+	uint16_t         length
 );
 
-unsigned char* cmls_crypto_ExpandWithLabel(
-	cmls_CipherSuite     suite,
-	const unsigned char* secret,
-	size_t               secret_len,
-	const char*          label,
-	const unsigned char* context,
-	size_t               context_len,
-	uint16_t             length
+bytes cmls_crypto_DeriveSecret(
+	cmls_CipherSuite suite,
+	bytes            secret,
+	const char*      label
 );
 
-unsigned char* cmls_crypto_DeriveSecret(
-	cmls_CipherSuite     suite,
-	const unsigned char* secret,
-	size_t               secret_len,
-	const char*          label
+bytes cmls_crypto_DeriveTreeSecret(
+	cmls_CipherSuite suite,
+	bytes            secret,
+	const char*      label,
+	uint32_t         generation,
+	uint16_t         length
 );
 
-unsigned char* cmls_crypto_DeriveTreeSecret(
-	cmls_CipherSuite     suite,
-	const unsigned char* secret,
-	size_t               secret_len,
-	const char*          label,
-	uint32_t             generation,
-	uint16_t             length
-);
-
-void cmls_crypto_SignWithLabel(
-	cmls_CipherSuite     suite,
-	const unsigned char* key,
-	size_t               key_len,
-	const char*          label,
-	const unsigned char* content,
-	size_t               content_len,
-
-	unsigned char** sig,
-	size_t*         sig_len
+bytes cmls_crypto_SignWithLabel(
+	EVP_PKEY*   secret_key,
+	const char* label,
+	bytes       content
 );
 
 bool cmls_crypto_VerifyWithLabel(
-	cmls_CipherSuite     suite,
-	const unsigned char* key,
-	size_t               key_len,
-	const char*          label,
-	const unsigned char* content,
-	size_t               content_len,
-	const unsigned char* sig,
-	size_t               sig_len
+	EVP_PKEY*   public_key,
+	const char* label,
+	bytes       content,
+	bytes       sig
 );
 
 void cmls_crypto_test(const json_t* entry);

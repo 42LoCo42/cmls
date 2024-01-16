@@ -3,6 +3,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+bytes cstr2bs(const char* cstr) {
+	return (bytes){
+		.ptr = (unsigned char*) cstr,
+		.len = strlen(cstr),
+	};
+}
+
 char* next_arg(int* argc, char*** argv) {
 	if(*argc == 0) return NULL;
 	char* res = (*argv)[0];
@@ -16,14 +23,14 @@ int json_opt_int(json_t* value) {
 	return json_integer_value(value);
 }
 
-unsigned char* decode_hex(const char* hex, size_t* len_out) {
-	size_t         len = strlen(hex) / 2;
-	unsigned char* res = malloc(len);
-	if(res == NULL) return res;
+bytes decode_hex(const char* hex) {
+	bytes res = {
+		.len = strlen(hex) / 2,
+	};
+	vec_extend(&res);
 
-	for(size_t i = 0; i < len; i++) {
-		sscanf(&hex[i * 2], "%2hhx", &res[i]);
+	for(size_t i = 0; i < res.len; i++) {
+		sscanf(&hex[i * 2], "%2hhx", &res.ptr[i]);
 	}
-	if(len_out != NULL) *len_out = len;
 	return res;
 }

@@ -45,30 +45,28 @@ bool cmls_serialize_decode_header(const unsigned char* data, size_t* len) {
 	return true;
 }
 
-void cmls_serialize_encode(const unsigned char* data, size_t len, bytes* vec) {
+void cmls_serialize_encode(bytes data, bytes* out) {
 	unsigned char header[4]  = {0};
-	size_t        header_len = cmls_serialize_length_length(len);
-	cmls_serialize_encode_header(len, header);
-	vec_push_all(vec, header, header_len);
-	vec_push_all(vec, data, len);
+	size_t        header_len = cmls_serialize_length_length(data.len);
+	cmls_serialize_encode_header(data.len, header);
+	vec_push_all(out, header, header_len);
+	vec_push_all(out, data.ptr, data.len);
 }
 
 void cmls_serialize_test(const json_t* entry) {
-	unsigned char* header = (unsigned char*) decode_hex(
-		json_string_value(json_object_get(entry, "vlbytes_header")),
-		NULL
-	);
+	bytes header =
+		decode_hex(json_string_value(json_object_get(entry, "vlbytes_header")));
 	size_t length_want = json_integer_value(json_object_get(entry, "length"));
 	size_t length_have = 0;
 
-	assert(cmls_serialize_decode_header(header, &length_have));
+	assert(cmls_serialize_decode_header(header.ptr, &length_have));
 	assert(length_want == length_have);
 
 	unsigned char new_header[4] = {0};
 	cmls_serialize_encode_header(length_want, new_header);
 	for(size_t i = 0; i < cmls_serialize_length_length(length_want); i++) {
-		assert(header[i] == new_header[i]);
+		assert(header.ptr[i] == new_header[i]);
 	}
 
-	free(header);
+	vec_free(&header);
 }
