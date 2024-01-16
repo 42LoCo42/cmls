@@ -1,0 +1,5 @@
+* Things that bother me / Possible TODOs
+- The secp* cipher suites (2, 5, 7) are not supported
+  because they generate different signatures
+- There is a valgrind error with OSSL_HPKE_open
+  specifically with cipher suite 1
