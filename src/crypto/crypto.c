@@ -158,6 +158,18 @@ end:
 	return pkey;
 }
 
+void cmls_crypto_RLC(const char* label, bytes content, bytes* vec) {
+	char* real_label = NULL;
+	if(asprintf(&real_label, "MLS 1.0 %s", label) < 0)
+		die("asprintf real label");
+
+	cmls_serialize_encode(cstr2bs(real_label), vec);
+	cmls_serialize_encode(content, vec);
+
+end:
+	if(real_label != NULL) free(real_label);
+}
+
 bytes cmls_crypto_RefHash(
 	cmls_CipherSuite suite,
 	const char*      label,
@@ -185,15 +197,11 @@ bytes cmls_crypto_ExpandWithLabel(
 	bytes out = {.len = length};
 	vec_extend(&out);
 
-	char* real_label = NULL;
-	bytes info       = {0};
-
 	// create KDFLabel
-	if(asprintf(&real_label, "MLS 1.0 %s", label) < 0) goto end;
+	bytes info = {0};
 	vec_push(&info, length >> (8 * 1));
 	vec_push(&info, length >> (8 * 0));
-	cmls_serialize_encode(cstr2bs(real_label), &info);
-	cmls_serialize_encode(context, &info);
+	cmls_crypto_RLC(label, context, &info);
 
 	// create parameters
 	int        mode     = EVP_KDF_HKDF_MODE_EXPAND_ONLY;
@@ -216,9 +224,7 @@ bytes cmls_crypto_ExpandWithLabel(
 	ctx_set_digest(suite);
 	EVP_KDF_derive(kdf_ctx, out.ptr, length, params);
 
-end:
 	if(info.ptr != NULL) vec_free(&info);
-	if(real_label != NULL) free(real_label);
 	return out;
 }
 
@@ -254,19 +260,6 @@ bytes cmls_crypto_DeriveTreeSecret(
 	return cmls_crypto_ExpandWithLabel(suite, secret, label, context, length);
 }
 
-static bytes mkSignContent(const char* label, bytes content) {
-	char* real_label = NULL;
-	bytes msg        = {0};
-
-	if(asprintf(&real_label, "MLS 1.0 %s", label) < 0) goto end;
-	cmls_serialize_encode(cstr2bs(real_label), &msg);
-	cmls_serialize_encode(content, &msg);
-
-end:
-	if(real_label != NULL) free(real_label);
-	return msg;
-}
-
 bytes cmls_crypto_SignWithLabel(
 	EVP_PKEY*   secret_key,
 	const char* label,
@@ -278,7 +271,7 @@ bytes cmls_crypto_SignWithLabel(
 	bytes sig = {0};
 
 	// create message
-	msg = mkSignContent(label, content);
+	cmls_crypto_RLC(label, content, &msg);
 
 	sig.len = EVP_PKEY_get_size(secret_key);
 	vec_extend(&sig);
@@ -314,7 +307,7 @@ bool cmls_crypto_VerifyWithLabel(
 	bool  ok  = false;
 
 	// create message
-	msg = mkSignContent(label, content);
+	cmls_crypto_RLC(label, content, &msg);
 
 	// perform verification
 	if(EVP_DigestVerifyInit(md_ctx, NULL, NULL, NULL, public_key) <= 0)

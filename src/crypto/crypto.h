@@ -25,6 +25,8 @@ extern size_t           cmls_max_ciphersuite;
 
 EVP_PKEY* cmls_crypto_mkKey(cmls_CipherSuite suite, bytes data, bool is_public);
 
+void cmls_crypto_RLC(const char* label, bytes content, bytes* vec);
+
 bytes cmls_crypto_RefHash(
 	cmls_CipherSuite suite,
 	const char*      label,
