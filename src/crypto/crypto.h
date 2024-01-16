@@ -3,6 +3,7 @@
 
 #include "../utils/utils.h"
 #include <jansson.h>
+#include <openssl/hpke.h>
 #include <stdbool.h>
 
 typedef struct {
@@ -16,14 +17,26 @@ typedef struct {
 	char*  hash_name;
 	size_t hash_length;
 
-	int         key_type;
+	int         key_sign_type;
+	int         key_hpke_type;
 	const char* key_group;
+
+	OSSL_HPKE_SUITE hpke_suite;
 } cmls_CipherSuite;
 
 extern cmls_CipherSuite cmls_ciphersuites[];
 extern size_t           cmls_max_ciphersuite;
 
-EVP_PKEY* cmls_crypto_mkKey(cmls_CipherSuite suite, bytes data, bool is_public);
+typedef enum {
+	MKKEY_SECRET = 0b00,
+	MKKEY_PUBLIC = 0b01,
+
+	MKKEY_SIGN = 0b00,
+	MKKEY_HPKE = 0b10,
+} mkkey_flags;
+
+EVP_PKEY*
+cmls_crypto_mkKey(cmls_CipherSuite suite, bytes data, mkkey_flags flags);
 
 void cmls_crypto_RLC(const char* label, bytes content, bytes* vec);
 
@@ -66,6 +79,26 @@ bool cmls_crypto_VerifyWithLabel(
 	const char* label,
 	bytes       content,
 	bytes       sig
+);
+
+void cmls_crypto_EncryptWithLabel(
+	cmls_CipherSuite suite,
+	bytes            public_key,
+	const char*      label,
+	bytes            context,
+	bytes            plaintext,
+
+	bytes* kem_output,
+	bytes* ciphertext
+);
+
+bytes cmls_crypto_DecryptWithLabel(
+	cmls_CipherSuite suite,
+	EVP_PKEY*        secret_key,
+	const char*      label,
+	bytes            context,
+	bytes            kem_output,
+	bytes            ciphertext
 );
 
 void cmls_crypto_test(const json_t* entry);

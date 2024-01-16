@@ -1,7 +1,6 @@
 #include "crypto/crypto.h"
 #include "serialize/serialize.h"
 #include "treemath/treemath.h"
-#include <string.h>
 
 static char* ARGV0;
 

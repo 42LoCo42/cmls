@@ -9,6 +9,7 @@
 
           nativeBuildInputs = with pkgs; [
             pkg-config
+            valgrind
           ];
 
           buildInputs = with pkgs; [
@@ -27,7 +28,6 @@
           packages = with pkgs; [
             bear
             clang-tools
-            valgrind
           ];
         };
       });

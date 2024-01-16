@@ -30,7 +30,7 @@ run: $(NAME)
 .PHONY: run
 
 test: $(NAME)
-	valgrind ./$< testall
+	valgrind --track-origins=yes ./$< testall
 .PHONY: test
 
 install: $(NAME)
