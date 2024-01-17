@@ -88,6 +88,8 @@ typedef struct {
 	Vector(cmls_CredentialType) credentials;
 } cmls_Capabilities;
 
+void cmls_Capabilities_free(cmls_Capabilities* value);
+
 typedef struct {
 	uint64_t not_before;
 	uint64_t not_after;
@@ -113,5 +115,7 @@ typedef struct {
 	Vector(cmls_Extension) extensions;
 	bytes signature;
 } cmls_LeafNode;
+
+void cmls_LeafNode_free(cmls_LeafNode* value);
 
 #endif

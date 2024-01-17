@@ -127,11 +127,7 @@ int main(int argc, char** argv) {
 		printf("extensions: %zu\n", node.extensions.len);
 		printf("signature: %zu\n", node.signature.len);
 
-		vec_free(&node.capabilities.credentials);
-		vec_free(&node.capabilities.proposals);
-		vec_free(&node.capabilities.extensions);
-		vec_free(&node.capabilities.cipher_suites);
-		vec_free(&node.capabilities.versions);
+		cmls_LeafNode_free(&node);
 		vec_free(&tree_);
 	}
 
