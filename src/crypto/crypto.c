@@ -82,6 +82,7 @@ cmls_crypto_mkKey(cmls_CipherSuite suite, bytes data, mkkey_flags flags) {
 
 end:
 	if(pkey_ctx != NULL) EVP_PKEY_CTX_free(pkey_ctx);
+	vec_free(&data);
 	return pkey;
 }
 

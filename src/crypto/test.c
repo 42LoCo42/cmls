@@ -161,8 +161,6 @@ void cmls_crypto_test(const json_t* entry) {
 
 		vec_free(&sig_have);
 		vec_free(&sig_want);
-		vec_free(&pub);
-		vec_free(&priv);
 		vec_free(&content);
 	}
 
@@ -244,7 +242,6 @@ void cmls_crypto_test(const json_t* entry) {
 		vec_free(&kem_output_have);
 		vec_free(&plaintext_have_1);
 		vec_free(&pub);
-		vec_free(&priv);
 		vec_free(&plaintext_want);
 		vec_free(&kem_output_want);
 		vec_free(&context);
