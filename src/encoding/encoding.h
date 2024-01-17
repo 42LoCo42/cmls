@@ -2,6 +2,7 @@
 #define CMLS_ENCODING_H
 
 #include "../types/types.h"
+#include "jansson.h"
 #include <stdbool.h>
 
 typedef enum {
@@ -18,10 +19,10 @@ uint64_t cmls_dec_uint64(bytes* data);
 void          cmls_enc_optional(bytes* data, bool value);
 cmls_Optional cmls_dec_optional(bytes* data);
 
-// void cmls_enc_vector_header(bytes* data, size_t value);
+void    cmls_enc_vector_header(bytes* data, size_t value);
 ssize_t cmls_dec_vector_header(bytes* data);
 
-// void  cmls_enc_vector(bytes* data, bytes value);
+void  cmls_enc_vector(bytes* data, bytes value);
 bytes cmls_dec_vector(bytes* data);
 
 #define declare_enum_dec(type) cmls_##type cmls_dec_##type(bytes* data)
@@ -45,5 +46,7 @@ cmls_LifeTime cmls_dec_LifeTime(bytes* data);
 cmls_Extension cmls_dec_Extension(bytes* data);
 
 cmls_LeafNode cmls_dec_LeafNode(bytes* data);
+
+void cmls_encoding_test(const json_t* entry);
 
 #endif

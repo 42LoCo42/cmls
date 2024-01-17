@@ -1,5 +1,5 @@
 #include "crypto.h"
-#include "../serialize/serialize.h"
+#include "../encoding/encoding.h"
 #include <openssl/core_names.h>
 #include <openssl/evp.h>
 #include <openssl/kdf.h>
@@ -90,8 +90,8 @@ void cmls_crypto_RLC(const char* label, bytes content, bytes* vec) {
 	if(asprintf(&real_label, "MLS 1.0 %s", label) < 0)
 		die("asprintf real label");
 
-	cmls_serialize_encode(cstr2bs(real_label), vec);
-	cmls_serialize_encode(content, vec);
+	cmls_enc_vector(vec, cstr2bs(real_label));
+	cmls_enc_vector(vec, content);
 
 end:
 	if(real_label != NULL) free(real_label);
@@ -106,8 +106,8 @@ bytes cmls_crypto_RefHash(
 	vec_extend(&hash);
 
 	bytes vec = {0};
-	cmls_serialize_encode(cstr2bs(label), &vec);
-	cmls_serialize_encode(value, &vec);
+	cmls_enc_vector(&vec, cstr2bs(label));
+	cmls_enc_vector(&vec, value);
 
 	suite.hash(vec.ptr, vec.len, hash.ptr);
 	vec_free(&vec);

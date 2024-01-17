@@ -1,6 +1,5 @@
 #include "crypto/crypto.h"
 #include "encoding/encoding.h"
-#include "serialize/serialize.h"
 #include "treemath/treemath.h"
 
 static char* ARGV0;
@@ -15,8 +14,8 @@ void test(char* what) {
 
 	if(strcmp(what, "crypto") == 0)
 		func = cmls_crypto_test;
-	else if(strcmp(what, "serialize") == 0)
-		func = cmls_serialize_test;
+	else if(strcmp(what, "encoding") == 0)
+		func = cmls_encoding_test;
 	else if(strcmp(what, "treemath") == 0)
 		func = cmls_treemath_test;
 
@@ -64,7 +63,7 @@ int main(int argc, char** argv) {
 		test(what);
 	} else if(strcmp(mode, "testall") == 0) {
 		test("crypto");
-		test("serialize");
+		test("encoding");
 		test("treemath");
 	} else {
 		bytes tree_ = decode_hex(

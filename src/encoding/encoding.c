@@ -1,6 +1,5 @@
 #include "encoding.h"
 #include <assert.h>
-#include <stdint.h>
 
 uint8_t cmls_dec_uint8(bytes* data) {
 	uint8_t res = data->ptr[0];
@@ -62,6 +61,20 @@ cmls_Optional cmls_dec_optional(bytes* data) {
 	return res;
 }
 
+void cmls_enc_vector_header(bytes* data, size_t value) {
+	if(value < 0x40) {
+		vec_push(data, value);
+	} else if(value < 0x4000) {
+		vec_push(data, value >> (8 * 1) | 0x40);
+		vec_push(data, value >> (8 * 0) % 0x100);
+	} else if(value < 0x40000000) {
+		vec_push(data, value >> (8 * 3) | 0x80);
+		vec_push(data, value >> (8 * 2) % 0x100);
+		vec_push(data, value >> (8 * 1) % 0x100);
+		vec_push(data, value >> (8 * 0) % 0x100);
+	}
+}
+
 ssize_t cmls_dec_vector_header(bytes* data) {
 	ssize_t        res = 0;
 	unsigned char* ptr = data->ptr;
@@ -84,6 +97,11 @@ ssize_t cmls_dec_vector_header(bytes* data) {
 	}
 
 	return res;
+}
+
+void cmls_enc_vector(bytes* data, bytes value) {
+	cmls_enc_vector_header(data, value.len);
+	vec_push_all(data, value.ptr, value.len);
 }
 
 bytes cmls_dec_vector(bytes* data) {
@@ -193,4 +211,22 @@ cmls_LeafNode cmls_dec_LeafNode(bytes* data) {
 	vector_field(extensions, Extension);
 	res.signature = cmls_dec_vector(data);
 	return res;
+}
+
+void cmls_encoding_test(const json_t* entry) {
+	bytes header_want =
+		decode_hex(json_string_value(json_object_get(entry, "vlbytes_header")));
+	bytes header_ptr = header_want;
+
+	ssize_t length_want = json_integer_value(json_object_get(entry, "length"));
+	ssize_t length_have = cmls_dec_vector_header(&header_ptr);
+	assert(length_want == length_have);
+
+	bytes header_have = {0};
+	cmls_enc_vector_header(&header_have, length_want);
+	assert(header_want.len == header_have.len);
+	assert(memcmp(header_want.ptr, header_have.ptr, header_want.len) == 0);
+
+	vec_free(&header_have);
+	vec_free(&header_want);
 }
