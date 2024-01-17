@@ -118,4 +118,22 @@ typedef struct {
 
 void cmls_LeafNode_free(cmls_LeafNode* value);
 
+typedef struct {
+	cmls_HPKEPublicKey encryption_key;
+	bytes              parent_hash;
+	Vector(uint32_t) unmerged_leaves;
+} cmls_ParentNode;
+
+void cmls_ParentNode_free(cmls_ParentNode* value);
+
+typedef struct {
+	cmls_NodeType node_type;
+	union {
+		cmls_LeafNode   leaf_node;
+		cmls_ParentNode parent_node;
+	} data;
+} cmls_Node;
+
+void cmls_Node_free(cmls_Node* value);
+
 #endif

@@ -29,6 +29,8 @@ uint32_t cmls_dec_uint32(bytes* data) {
 	return be32toh(x.res);
 }
 
+static size_t uint32_inc = sizeof(uint32_t);
+
 uint64_t cmls_dec_uint64(bytes* data) {
 	union {
 		uint64_t res;
@@ -210,6 +212,30 @@ cmls_LeafNode cmls_dec_LeafNode(bytes* data) {
 
 	vector_field(extensions, Extension);
 	res.signature = cmls_dec_vector(data);
+	return res;
+}
+
+cmls_ParentNode cmls_dec_ParentNode(bytes* data) {
+	cmls_ParentNode res = {0};
+	res.encryption_key  = cmls_dec_vector(data);
+	res.parent_hash     = cmls_dec_vector(data);
+	vector_field(unmerged_leaves, uint32);
+	return res;
+}
+
+cmls_Node cmls_dec_Node(bytes* data) {
+	cmls_Node res = {0};
+	res.node_type = cmls_dec_NodeType(data);
+	switch(res.node_type) {
+	case NodeType_Leaf:
+		res.data.leaf_node = cmls_dec_LeafNode(data);
+		break;
+	case NodeType_Parent:
+		res.data.parent_node = cmls_dec_ParentNode(data);
+		break;
+	default:
+		assert("TODO: IMPOSSIBLE" && false);
+	}
 	return res;
 }
 

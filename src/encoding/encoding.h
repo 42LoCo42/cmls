@@ -47,6 +47,10 @@ cmls_Extension cmls_dec_Extension(bytes* data);
 
 cmls_LeafNode cmls_dec_LeafNode(bytes* data);
 
+cmls_ParentNode cmls_dec_ParentNode(bytes* data);
+
+cmls_Node cmls_dec_Node(bytes* data);
+
 void cmls_encoding_test(const json_t* entry);
 
 #endif
