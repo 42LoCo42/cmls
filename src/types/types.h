@@ -1,7 +1,7 @@
 #ifndef CMLS_TYPES_H
 #define CMLS_TYPES_H
 
-#include "../utils/utils.h"
+#include "../crypto/crypto.h"
 
 ///// opaques /////
 
@@ -139,5 +139,15 @@ void cmls_Node_free(cmls_Node* value);
 typedef Vector(cmls_Node) cmls_RatchetTree;
 
 void cmls_RatchetTree_free(cmls_RatchetTree* value);
+
+typedef struct {
+	cmls_ProtocolVersion version;
+	cmls_CipherSuite     cipher_suite;
+	bytes                group_id;
+	uint64_t             epoch;
+	bytes                tree_hash;
+	bytes                confirmed_transcript_hash;
+	Vector(cmls_Extension) extensions;
+} cmls_GroupContext;
 
 #endif

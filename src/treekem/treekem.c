@@ -2,7 +2,6 @@
 #include "../encoding/encoding.h"
 #include "openssl/core_names.h"
 #include "openssl/evp.h"
-#include "openssl/params.h"
 #include <assert.h>
 
 bytes cmls_treekem_derive_path_secret(
@@ -96,8 +95,22 @@ void cmls_treekem_test(const json_t* entry) {
 		}
 	}
 
-end:
+	cmls_GroupContext group_context = {
+		.version      = ProtocolVersion_MLS10,
+		.cipher_suite = suite,
+		.group_id =
+			decode_hex(json_string_value(json_object_get(entry, "group_id"))),
+		.epoch = json_integer_value(json_object_get(entry, "epoch")),
+		// .tree_hash = TODO
+		.confirmed_transcript_hash = decode_hex(json_string_value(
+			json_object_get(entry, "confirmed_transcript_hash")
+		)),
+	};
 
+	vec_free(&group_context.confirmed_transcript_hash);
+	vec_free(&group_context.group_id);
+
+end:
 	cmls_RatchetTree_free(&tree);
 	vec_free(&tree_data_);
 }
