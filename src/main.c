@@ -1,5 +1,5 @@
-#include "crypto/crypto.h"
 #include "encoding/encoding.h"
+#include "treekem/treekem.h"
 #include "treemath/treemath.h"
 
 static char* ARGV0;
@@ -16,6 +16,8 @@ void test(char* what) {
 		func = cmls_crypto_test;
 	else if(strcmp(what, "encoding") == 0)
 		func = cmls_encoding_test;
+	else if(strcmp(what, "treekem") == 0)
+		func = cmls_treekem_test;
 	else if(strcmp(what, "treemath") == 0)
 		func = cmls_treemath_test;
 
@@ -64,8 +66,8 @@ int main(int argc, char** argv) {
 	} else if(strcmp(mode, "testall") == 0) {
 		test("crypto");
 		test("encoding");
+		test("treekem");
 		test("treemath");
 	}
-
 	return 0;
 }

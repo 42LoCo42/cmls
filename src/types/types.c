@@ -29,3 +29,10 @@ void cmls_Node_free(cmls_Node* value) {
 		break;
 	}
 }
+
+void cmls_RatchetTree_free(cmls_RatchetTree* value) {
+	for(size_t i = 0; i < value->len; i++) {
+		cmls_Node_free(&value->ptr[i]);
+	}
+	vec_free(value);
+}

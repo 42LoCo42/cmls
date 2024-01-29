@@ -3,27 +3,12 @@
 #include <openssl/evp.h>
 
 void cmls_crypto_test(const json_t* entry) {
-	size_t suite_index_1 =
-		json_integer_value(json_object_get(entry, "cipher_suite"));
-
-	if(suite_index_1 > cmls_max_ciphersuite) {
-		fprintf(
-			stderr,
-			"\e[1;31mUnsupported cipher suite: %zu\e[m\n",
-			suite_index_1
-		);
+	cmls_CipherSuite suite = {0};
+	if(!cmls_get_CipherSuite(
+		   json_integer_value(json_object_get(entry, "cipher_suite")),
+		   &suite
+	   ))
 		return;
-	}
-
-	cmls_CipherSuite suite = cmls_ciphersuites[suite_index_1 - 1];
-	if(suite.skip) {
-		fprintf(
-			stderr,
-			"\e[1;31mSkipping cipher suite: %zu\e[m\n",
-			suite_index_1
-		);
-		return;
-	}
 
 	///// RefHash /////
 	{

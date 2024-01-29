@@ -5,12 +5,17 @@ LDFLAGS := $(LDFLAGS)
 
 ################################################################################
 
+ifdef DEPS
 CFLAGS  += $(shell pkg-config --cflags $(DEPS))
 LDFLAGS += $(shell pkg-config --libs   $(DEPS))
+endif
 
-SRCS := $(shell find -name '*.c')
-INCS := $(patsubst %.c,build/%.d,$(SRCS))
-OBJS := $(patsubst %.c,build/%.o,$(SRCS))
+SRCD := src
+BLDD := build
+
+SRCS := $(patsubst $(SRCD)/%,%,$(shell find src -name '*.c'))
+INCS := $(patsubst %.c,$(BLDD)/%.d,$(SRCS))
+OBJS := $(patsubst %.c,$(BLDD)/%.o,$(SRCS))
 DIRS := $(sort $(shell dirname $(OBJS)))
 
 $(shell mkdir -p $(DIRS))
@@ -19,7 +24,7 @@ all: $(NAME)
 
 -include $(INCS)
 
-build/%.o: %.c
+$(BLDD)/%.o: $(SRCD)/%.c
 	$(CC) $(CFLAGS) -c $< -MMD -o $@
 
 $(NAME): $(OBJS)
@@ -39,5 +44,7 @@ install: $(NAME)
 .PHONY: install
 
 clean:
-	rm -rf build $(NAME)
+	rm -rf $(BLDD) $(NAME)
+	@echo $(SRCS)
+	@echo $(OBJS)
 .PHONY: clean

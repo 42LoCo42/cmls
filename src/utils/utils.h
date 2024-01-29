@@ -4,6 +4,7 @@
 #include <err.h>
 #include <jansson.h>
 #include <openssl/err.h>
+#include <stdbool.h>
 #include <string.h>
 
 #define die(...)                                                               \
@@ -66,5 +67,7 @@ char* next_arg(int* argc, char*** argv);
 int json_opt_int(json_t* value);
 
 bytes decode_hex(const char* hex);
+
+bool cmls_get_CipherSuite(size_t suite_index_1, void* suite);
 
 #endif

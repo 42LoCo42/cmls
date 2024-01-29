@@ -136,4 +136,8 @@ typedef struct {
 
 void cmls_Node_free(cmls_Node* value);
 
+typedef Vector(cmls_Node) cmls_RatchetTree;
+
+void cmls_RatchetTree_free(cmls_RatchetTree* value);
+
 #endif

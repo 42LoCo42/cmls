@@ -1,4 +1,5 @@
 #include "encoding.h"
+#include "../treemath/treemath.h"
 #include <assert.h>
 
 uint8_t cmls_dec_uint8(bytes* data) {
@@ -237,6 +238,29 @@ cmls_Node cmls_dec_Node(bytes* data) {
 		assert("TODO: IMPOSSIBLE" && false);
 	}
 	return res;
+}
+
+cmls_RatchetTree cmls_dec_RatchetTree(bytes* data) {
+	unsigned char*   stop  = &data->ptr[data->len];
+	cmls_RatchetTree tree  = {0};
+	bytes            inner = cmls_dec_vector(data);
+
+	while(inner.ptr < stop) {
+		cmls_Optional has_node = cmls_dec_optional(&inner);
+		if(has_node == OPTIONAL_ERR) die("invalid optional");
+
+		vec_push(&tree, (cmls_Node){0});
+		if(has_node == OPTIONAL_OK)
+			tree.ptr[tree.len - 1] = cmls_dec_Node(&inner);
+	}
+
+	size_t all_nodes = cmls_treemath_all_nodes(tree.len);
+	while(tree.len < all_nodes) {
+		vec_push(&tree, (cmls_Node){0});
+	}
+
+end:
+	return tree;
 }
 
 void cmls_encoding_test(const json_t* entry) {

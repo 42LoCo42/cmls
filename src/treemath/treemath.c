@@ -24,6 +24,10 @@ static int level(int x) {
 	return k;
 }
 
+int cmls_treemath_all_nodes(int partial_nodes) {
+	return (1 << (log2x(partial_nodes) + 1)) - 1;
+}
+
 int cmls_treemath_nodes(int leaves) {
 	return leaves == 0 ? 0 : 2 * (leaves - 1) + 1;
 }

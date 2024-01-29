@@ -3,6 +3,8 @@
 
 #include <jansson.h>
 
+int cmls_treemath_all_nodes(int partial_nodes);
+
 int cmls_treemath_nodes(int leaves);
 int cmls_treemath_root(int leaves);
 int cmls_treemath_left(int node);

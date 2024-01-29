@@ -51,6 +51,8 @@ cmls_ParentNode cmls_dec_ParentNode(bytes* data);
 
 cmls_Node cmls_dec_Node(bytes* data);
 
+cmls_RatchetTree cmls_dec_RatchetTree(bytes* data);
+
 void cmls_encoding_test(const json_t* entry);
 
 #endif
